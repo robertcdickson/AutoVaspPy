@@ -3,6 +3,7 @@ from ase.io import read
 import matplotlib.pyplot as plt
 import os
 import shutil
+import ase.dft.kpoints
 
 # --------------------------------------------------------#
 #  This module aims to be able to automate calculations  #
@@ -22,10 +23,10 @@ def band_k_path(struct=None, nkpts=20, view_path=False):
     # get band path
     path = struct.cell.bandpath(npoints=nkpts)
 
-    if view_path:
+    """if view_path:
         path.plot()
         plt.show()
-    return path
+    return path"""
 
 
 class VaspCalculations(object):
@@ -58,17 +59,6 @@ class VaspCalculations(object):
         self.hubbard = {"ldau": True,
                                     "ldau_luj": hubbard_parameters,
                                     "ldauprint": 2}
-
-        self.test_parameters = {"hubbard": {"ldau": True,
-                                            "ldauprint": 2},
-                                "k-points": {},
-                                "ecut": {},
-                                }
-        self.calculation_parameters = {"general": self.general_calculation,
-                                       "scf": self.general_calculation.update(self.scf),
-                                       # "bands": self.general_calculation.update(self.bands_calculation),
-                                       "eps": self.general_calculation.update(self.eps),
-                                       "hse06": self.general_calculation.update(self.hse)}
 
         self.structure = structure
         self.calculations = calculations
@@ -123,10 +113,11 @@ class VaspCalculations(object):
                 self.structure.set_calculator(Vasp(**vasp_keywords))
                 try:
                     energy = self.structure.get_potential_energy()
-                    energies.append(energy)
+
                 except (TypeError, ValueError):
-                    print("A VASP error has occurred in test: {}|{}. Please check again".format(test, test_value))
-                    energies.append("")
+                    print("A VASP error has occurred in test: {} | {}. Please check again".format(test, test_value))
+                    energy = 0
+                energies.append(energy)
                 os.chdir("../")
 
             out_file.write("{} | Energy")
@@ -147,7 +138,7 @@ class VaspCalculations(object):
                     shutil.copyfileobj(oszicar_file, vasp_out)
 
 
-MnFe2O4_structure = read("./Cifs/MnFe2O4-Normal.cif")
+MnFe2O4_structure = read("../Cifs/MnFe2O4-Normal.cif")
 MnFe2O4_tests = VaspCalculations(MnFe2O4_structure)
 
 k_test = MnFe2O4_tests.parameter_testing("k-points", [1, 2, 3])
