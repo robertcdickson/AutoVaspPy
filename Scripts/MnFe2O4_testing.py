@@ -76,53 +76,67 @@ class VaspCalculations(object):
         self.output_file = output_file
         self.tests = tests
 
-    def test_manager(self, test, values):
+    def parameter_testing(self, test, values):
         # ------------------------------------------------------------------ #
         #  master function that is used to call all other functions in turn  #
         # ------------------------------------------------------------------ #
 
-        # define path and check if directory exists
-        path_name = "./tests/{}".format(test)
+        with open(self.output_file, "a+") as out_file:
 
-        if not os.path.exists(path_name):
-            os.mkdir(path_name)
+            out_file.write("-" * 50)
+            out_file.write("{} testing with a list of values of {}".format(test, values))
 
-        os.chdir(path_name)
+            # define path and check if directory exists
+            path_name = "./tests/{}".format(test)
 
-        # list for storage of tested output
-        energies = []
+            if not os.path.exists(path_name):
+                os.mkdir(path_name)
+            os.chdir(path_name)
 
-        # append the general VASP keywords for the test
-        vasp_keywords = self.general_calculation.update(self.test_parameters[test])
+            out_file.write("Testing calculations running from the directory: {}".format(path_name))
 
-        for test_value in values:
-            test_path = "./{}".format(test_value)
+            # list for storage of tested output
+            energies = []
 
-            if not os.path.exists(test_path):
-                os.mkdir(test_path)
-            os.chdir(test_path)
+            # append the general VASP keywords for the test
+            vasp_keywords = self.general_calculation.update(self.test_parameters[test])
 
-            # statements to find which type of test is being used
-            if test == "k-points":
-                test_variable = "kpts"
-                test_value = [test_value, test_value, test_value]
-            elif test == "ecut":
-                test_variable = "ecut"
-            else:
-                raise ValueError('Error: test requested is not implemented. Please check test argument and try again.')
+            for test_value in values:
+                test_path = "./{}".format(test_value)
 
-            # update keywords dictionary to have new test value
-            vasp_keywords = vasp_keywords.update({test_variable: test_value})
+                if not os.path.exists(test_path):
+                    os.mkdir(test_path)
+                os.chdir(test_path)
 
-            calculation = self.structure.set_calculator(Vasp(**vasp_keywords))
-            try:
-                energy = calculation.get_potential_energy()
-                energies.append(energy)
-            except:
-                print("A VASP error has occurred in test: {}|{}. Please check again".format(test, test_value))
-                energies.append("")
+                # statements to find which type of test is being used
+                if test == "k-points":
+                    test_variable = "kpts"
+                    test_value = [test_value, test_value, test_value]
+                elif test == "ecut":
+                    test_variable = "ecut"
+                else:
+                    raise ValueError('Error: test requested is not implemented. Please check test argument and try again.')
+
+                # update keywords dictionary to have new test value
+                vasp_keywords = vasp_keywords.update({test_variable: test_value})
+
+                calculation = self.structure.set_calculator(Vasp(**vasp_keywords))
+                try:
+                    energy = calculation.get_potential_energy()
+                    energies.append(energy)
+                except:
+                    print("A VASP error has occurred in test: {}|{}. Please check again".format(test, test_value))
+                    energies.append("")
+                os.chdir("../")
+
+            out_file.write("{} | Energy")
+            out_file.write("-" * 10)
+            for value, e in zip(values, energies):
+                out_file.write("{} | {}".format(value, energy))
 
         return energies
+
+
 
         # for calculation in self.calculations:
         # TODO: Who calculation workflow
