@@ -36,7 +36,7 @@ class VaspCalculations(object):
                                     "setups": 'materialsproject',
                                     "encut": 520,
                                     "kpts": [6, 6, 6],
-                                    "ismear": -5,
+                                    "ismear": 1,
                                     "sigma": 0.05,
                                     "prec": 'accurate',
                                     "lorbit": 11}
@@ -72,8 +72,8 @@ class VaspCalculations(object):
 
         with open(self.output_file, "a+") as out_file:
 
-            out_file.write("-" * 50)
-            out_file.write("{} testing with a list of values of {}".format(test, values))
+            out_file.write("--------------------\n")
+            out_file.write("{} testing with a list of values of {}\n".format(test, values))
 
             # define path and check if directory exists
             path_name = "./tests/{}".format(test)
@@ -82,7 +82,7 @@ class VaspCalculations(object):
                 os.mkdir(path_name)
             os.chdir(path_name)
 
-            out_file.write("Testing calculations running from the directory: {}".format(path_name))
+            out_file.write("Testing calculations running from the directory: {} \n".format(path_name))
 
             # list for storage of tested output
             energies = []
@@ -120,10 +120,10 @@ class VaspCalculations(object):
                 energies.append(energy)
                 os.chdir("../")
 
-            out_file.write("{} | Energy")
-            out_file.write("-" * 10)
+            out_file.write("{} | Energy \n".format(test))
+            out_file.write("--------------------\n")
             for value, e in zip(values, energies):
-                out_file.write("{} | {}".format(value, energy))
+                out_file.write("| {} | {} | \n".format(value, e))
 
         return energies
 
