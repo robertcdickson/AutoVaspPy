@@ -83,7 +83,7 @@ class VaspCalculations(object):
             os.chdir(path_name)
 
             out_file.write("Testing calculations running from the directory: {} \n".format(path_name))
-
+            out_file.write("{} | Energy \n".format(test))
             # list for storage of tested output
             energies = []
 
@@ -117,13 +117,11 @@ class VaspCalculations(object):
                 except (TypeError, ValueError):
                     print("A VASP error has occurred in test: {} | {}. Please check again".format(test, test_value))
                     energy = 0
+                out_file.write("| {} | {} | \n".format(test_value, energy))
                 energies.append(energy)
                 os.chdir("../")
 
-            out_file.write("{} | Energy \n".format(test))
             out_file.write("--------------------\n")
-            for value, e in zip(values, energies):
-                out_file.write("| {} | {} | \n".format(value, e))
 
         return energies
 
