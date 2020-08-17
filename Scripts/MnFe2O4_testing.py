@@ -108,8 +108,8 @@ class VaspCalculations(object):
                 if test == "k-points":
                     test_variable = "kpts"
                     test_value = [test_value, test_value, test_value]
-                elif test == "ecut":
-                    test_variable = "ecut"
+                elif test == "ecut" or "encut":
+                    test_variable = "encut"
                 else:
                     raise ValueError('Error: test requested is not implemented. Please check test argument and try '
                                      'again.')
