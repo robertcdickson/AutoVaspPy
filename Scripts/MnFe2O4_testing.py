@@ -251,29 +251,28 @@ class VaspCalculations(object):
 
             return structure
 
-    def single_vasp_calc(self, calculation_type, additional_settings, restart=False):
+    def single_vasp_calc(self, calculation_type="scf", additional_settings=None, restart=False, nkpts=200):
         """
-
+        A self-contained function that runs a single VASP calculation
+        :param nkpts:
         :param calculation_type:
         :param additional_settings:
         :param restart:
         :return:
         """
+        if additional_settings is None:
+            additional_settings = {}
+
         with open(self.output_file, "a+") as vasp_out:
             # defining vasp settings
             vasp_settings = self.general_calculation.copy()
 
             # Update for each calculation type and addition setting desired
-
             vasp_settings.update(calculation_type)
             vasp_settings.update(additional_settings)
 
             if calculation_type == "bands":
-                vasp_settings.update(kpts=self.get_band_path())
-            # check if calculation has been ran before
-            if os.path.isfile("OSZICAR"):
-                with open("OSZICAR", mode="r") as oszicar_file:
-                    shutil.copyfileobj(oszicar_file, vasp_out)
+                vasp_settings.update(kpts=self.get_band_path(nkpts=nkpts))
 
             # run energy calculation
             structure, energy, result = self.run_vasp(vasp_settings)
@@ -282,12 +281,12 @@ class VaspCalculations(object):
             else:
                 raise ValueError
 
-    def get_band_path(self):
+    def get_band_path(self, nkpts):
         # This defines the band structures from setwayan et al
         lattice = self.structure.cell.get_bravais_lattice()
-        path = bandpath(str(lattice.special_path), self.structure.cell, npoints=20)
+        path = bandpath(str(lattice.special_path), self.structure.cell, npoints=nkpts)
         print(path.kpts)
-        return kpts
+        return path.kpts
 
     # TODO: Self-consistent hubbard set-up
     # TODO: Calculation Manager
