@@ -1,5 +1,6 @@
 from ase.calculators.vasp import Vasp
 from ase.io import read
+from ase.dft.kpoints import bandpath
 import matplotlib.pyplot as plt
 import os
 import shutil
@@ -17,20 +18,58 @@ test_names = {"hubbard": [3.5, 4.0, 4.5, 5.0], "k-points": [6, 7, 8], "ecut": [5
 functionals = ["PBE", "HSE06"]
 calculations_types = ["relax", "scf", "bands", "eps"]  # could have parameters for more complex optical calcs
 
-
-def band_k_path(struct=None, nkpts=20, view_path=False):
-    """plots the k-path suggested from Setawayan et al"""
+"""def band_k_path(struct=None, nkpts=20, view_path=False):
+    plots the k-path suggested from Setawayan et al
     # get band path
     path = struct.cell.bandpath(npoints=nkpts)
 
-    """if view_path:
+    if view_path:
         path.plot()
         plt.show()
     return path"""
 
 
+def converged_in_one_scf_cycle(outcar_file):
+    """
+    Determines whether a VASP calculation converged in a single SCF cycle.
+    Parameters
+    ----------
+    outcar_file : str
+        OUTCAR file for this vasp calculation.
+    Returns
+    -------
+    converged : boolean
+        True if the calculation has converged, and did so within a single SCF cycle.
+    ---------------------------------------------------------------------------
+    Paul Sharp 27/10/2017
+    """
+
+    aborting_ionic_loop_marker = "aborting loop"
+    convergence_marker = "reached required accuracy"
+
+    num_convergence_strings = 0
+    num_ionic_loops = 0
+
+    with open(outcar_file, mode="r") as outcar:
+        for line in outcar:
+            num_convergence_strings += line.count(convergence_marker)
+            num_ionic_loops += line.count(aborting_ionic_loop_marker)
+
+    converged = num_convergence_strings > 0 and num_ionic_loops == 1
+
+    return converged
+
+
 class VaspCalculations(object):
     def __init__(self, structure, calculations=["scf"], tests=None, output_file="output.out", hubbard_parameters=None):
+        """
+
+        :param structure:
+        :param calculations:
+        :param tests:
+        :param output_file:
+        :param hubbard_parameters:
+        """
         self.general_calculation = {"reciprocal": True,
                                     "xc": "PBE",
                                     "setups": 'materialsproject',
@@ -59,6 +98,10 @@ class VaspCalculations(object):
         self.hubbard = {"ldau": True,
                         "ldau_luj": hubbard_parameters,
                         "ldauprint": 2}
+
+        self.std_calc_settings = {"scf": self.scf,
+                                  # "bands": self.bands,
+                                  "eps": self.eps}
 
         self.structure = structure
         self.calculations = calculations
@@ -135,15 +178,116 @@ class VaspCalculations(object):
 
         return energies
 
-    def single_vasp_calculation(self, calculation_type, additional_settings, restart=False):
+    def calc_manager(self, calc_seq=None):
+        if calc_seq is None:
+            calc_seq = ["relax", "scf"]
+        print(f"Calculations on {calc_seq}")
+
+    def run_vasp(self, vasp_settings):
+        """
+        Run a single VASP calculation using an ASE calculator.
+        This routine will make use of WAVECAR and CONTCAR files if they are available.
+        Parameters
+        ----------
+        structure : ASE atoms
+            The structure used in the VASP calculation
+        vasp_settings : dict
+            The set of VASP options to apply with their values.
+        Returns
+        -------
+        structure : ase atoms
+            The structure after performing this calculation.
+        energy : float
+            Energy of the structure in eV.
+        result : string
+            The result of the VASP calculation,
+            either "converged", "unconverged", "vasp failure", or "timed out"
+        ---------------------------------------------------------------------------
+        Paul Sharp 25/09/2017
+        """
+
+        # Set files for calculation
+        energy = 0.0
+        result = ""
+
+        # Use ASE calculator -- the use of **kwargs in the function call allows us to set the desired arguments using a
+        # dictionary
+        structure = self.structure
+        structure.set_calculator(Vasp(**vasp_settings))
+
+        # Run calculation, and consider any exception to be a VASP failure
+        try:
+            energy = structure.get_potential_energy()
+        except ValueError:
+            result = "vasp failure"
+
+        return structure, energy, result
+
+    def relax_struct(self, additional_settings, path_name="./relax"):
+
+        if not os.path.exists(path_name):
+            os.mkdir(path_name)
+        os.chdir(path_name)
+
         with open(self.output_file, "a+") as vasp_out:
             # defining vasp settings
-            vasp_settings = self.general_calculation.update(calculation_type)
+            vasp_settings = self.general_calculation.copy()
+
+            # Update for relaxation type and adjust any additional parameters
+            vasp_settings.update(self.relax)
             vasp_settings.update(additional_settings)
 
+            converged = False
+            while not converged:
+                # run calculation
+                structure, energy, result = self.run_vasp(vasp_settings)
+                if converged_in_one_scf_cycle("OUTCAR"):
+                    break
+
+                # Copy CONTCAR to POSCAR for next stage of calculation -- use "copy2()" because it copies metadata
+                # and permissions
+                if os.path.isfile("CONTCAR"):
+                    shutil.copy2("CONTCAR", "POSCAR")
+
+            return structure
+
+    def single_vasp_calc(self, calculation_type, additional_settings, restart=False):
+        """
+
+        :param calculation_type:
+        :param additional_settings:
+        :param restart:
+        :return:
+        """
+        with open(self.output_file, "a+") as vasp_out:
+            # defining vasp settings
+            vasp_settings = self.general_calculation.copy()
+
+            # Update for each calculation type and addition setting desired
+
+            vasp_settings.update(calculation_type)
+            vasp_settings.update(additional_settings)
+
+            if calculation_type == "bands":
+                vasp_settings.update(kpts=self.get_band_path())
+            # check if calculation has been ran before
             if os.path.isfile("OSZICAR"):
                 with open("OSZICAR", mode="r") as oszicar_file:
                     shutil.copyfileobj(oszicar_file, vasp_out)
+
+            # run energy calculation
+            structure, energy, result = self.run_vasp(vasp_settings)
+            if result == "":
+                return structure
+            else:
+                raise ValueError
+
+    def get_band_path(self):
+        # This defines the band structures from setwayan et al
+        lattice = self.structure.cell.get_bravais_lattice()
+        path = bandpath(str(lattice.special_path), self.structure.cell, npoints=20)
+        print(path.kpts)
+        return kpts
 
     # TODO: Self-consistent hubbard set-up
     # TODO: Calculation Manager
@@ -151,9 +295,11 @@ class VaspCalculations(object):
     # TODO: single calculations for HSE06, SCAN, GGA+U,
 
 
-MnFe2O4_structure = read("../Cifs/MnFe2O4-Normal.cif")
-MnFe2O4_tests = VaspCalculations(MnFe2O4_structure)
+MnFe2O4_structure = read("./Cifs/MnFe2O4-Normal.cif")
+# MnFe2O4_structure = read("./relax/POSCAR")
+MnFe2O4_calculation = VaspCalculations(MnFe2O4_structure)
 
+MnFe2O4_calculation.get_band_path()
 # k testing
 # k_test = MnFe2O4_tests.parameter_testing("k-points", [1, 2, 3])
 # ecut testing
