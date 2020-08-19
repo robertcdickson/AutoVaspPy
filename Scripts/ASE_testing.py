@@ -89,24 +89,22 @@ class VaspCalculations(object):
                       "isif": 3,
                       "icharg": 1}
 
-        self.scf = {"icharg": 2}
+        self.parameters = {
+            "scf": {"icharg": 2},
 
-        # self.bands = {"kpts": band_k_path().kpts, "icharg": 11}
+            "bands": {"icharg": 11},
 
-        self.eps = {"algo": "exact",
+            "eps": {"algo": "exact",
                     "loptics": True,
                     "nbands": 100,
-                    "nedos": 1000}
+                    "nedos": 1000},
 
-        self.hse06 = {"xc": "HSE06"}
+            "hse06": {"xc": "HSE06"},
 
-        self.hubbard = {"ldau": True,
+            "hubbard": {"ldau": True,
                         "ldau_luj": hubbard_parameters,
                         "ldauprint": 2}
-
-        self.std_calc_settings = {"scf": self.scf,
-                                  # "bands": self.bands,
-                                  "eps": self.eps}
+        }
 
         self.structure = structure
         self.calculations = calculations
@@ -343,8 +341,8 @@ class VaspCalculations(object):
             vasp_settings = self.general_calculation.copy()
 
             # Update for each calculation type and addition setting desired
-            vasp_settings.update(calculation_type)
-            vasp_settings.update(add_settings)
+            vasp_settings.update(self.parameters[calculation_type])
+            # vasp_settings.update(add_settings)
 
             if calculation_type == "bands":
                 vasp_settings.update(kpts=self.get_band_path(nkpts=nkpts))
