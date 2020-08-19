@@ -17,6 +17,7 @@ inversion = ["inverse", "normal"]
 test_names = {"hubbard": [3.5, 4.0, 4.5, 5.0], "k-points": [6, 7, 8], "ecut": [500, 550, 600, 700]}
 functionals = ["PBE", "HSE06"]
 calculations_types = ["relax", "scf", "bands", "eps"]  # could have parameters for more complex optical calcs
+calculation_add_ons = ["functional", "magnetism" "hubbard", ]
 
 """def band_k_path(struct=None, nkpts=20, view_path=False):
     plots the k-path suggested from Setawayan et al
@@ -82,7 +83,8 @@ class VaspCalculations(object):
 
         self.relax = {"ibrion": 2,  # determines how ions are moved and updated (MD or relaxation)
                       "nsw": 50,  # number of ionic steps
-                      "isif": 3}
+                      "isif": 3,
+                      "icharg": 1}
 
         self.scf = {"icharg": 2}
 
@@ -90,7 +92,7 @@ class VaspCalculations(object):
 
         self.eps = {"algo": "exact",
                     "loptics": True,
-                    "nbands": "lots",
+                    "nbands": 100,
                     "nedos": 1000}
 
         self.hse06 = {"xc": "HSE06"}
@@ -178,9 +180,51 @@ class VaspCalculations(object):
 
         return energies
 
-    def calc_manager(self, calc_seq=None):
+    def calc_manager(self, calc_seq=None, wavecar=[False, True], chg=[True, False], add_settings=None):
+
+        # default calculation sequence is relaxation and scf
         if calc_seq is None:
             calc_seq = ["relax", "scf"]
+
+        # loop through all calculations
+        for i, calc in enumerate(calc_seq):
+            """
+            Here we need different settings for all calculations:
+                
+                relax: unmodified -> magnetic
+                scf: magnetic -> hubbard/HSE06 
+                dos: usually same as scf; dos_settings can be changed (although usually LORBIT = 11)
+                bands: scf CHGCAR always needed (?)
+                eps: scf with high bands and k-points needed
+                
+            These all needed saved individually in their respective directories and need to be able to check for other 
+            calculations already done as:
+            
+                relax <-> scf <-> dos/bands/eps
+                
+            
+            """
+
+            # make separate directories for each calculation
+            path = f"./{calc}"
+            os.mkdir(path)
+
+            # if desired, copy CHGCAR or WAVECAR
+            if chg[i]:
+                shutil.copy2("./SAFE/CHGCAR", path)
+            if wavecar[i]:
+                shutil.copy2("./SAFE/WAVECAR", path)
+            os.chdir(path)
+
+            # relax uses self.relax_struct(), whereas all other calculations used self.single_vasp_calc()
+            if calc == "relax":
+                current_struct, energy = self.relax_struct()
+            else:
+                # run calculation
+                current_struct, energy = self.single_vasp_calc(calculation_type=calc, add_settings=add_settings)
+                # TODO: do I need an exception check here?
+            print(current_struct, energy)
+
         print(f"Calculations on {calc_seq}")
 
     def run_vasp(self, vasp_settings):
@@ -223,7 +267,7 @@ class VaspCalculations(object):
 
         return structure, energy, result
 
-    def relax_struct(self, additional_settings, path_name="./relax"):
+    def relax_struct(self, add_settings=None, path_name="./relax"):
 
         if not os.path.exists(path_name):
             os.mkdir(path_name)
@@ -233,14 +277,18 @@ class VaspCalculations(object):
             # defining vasp settings
             vasp_settings = self.general_calculation.copy()
 
-            # Update for relaxation type and adjust any additional parameters
+            # update for relaxation type and adjust any additional parameters
             vasp_settings.update(self.relax)
-            vasp_settings.update(additional_settings)
+
+            # update for any addition settings wanted
+            if add_settings:
+                vasp_settings.update(add_settings)
 
             converged = False
             while not converged:
                 # run calculation
                 structure, energy, result = self.run_vasp(vasp_settings)
+                vasp_settings.update({"ICHARG": 1})
                 if converged_in_one_scf_cycle("OUTCAR"):
                     break
 
@@ -249,19 +297,17 @@ class VaspCalculations(object):
                 if os.path.isfile("CONTCAR"):
                     shutil.copy2("CONTCAR", "POSCAR")
 
-            return structure
+            return structure, energy
 
-    def single_vasp_calc(self, calculation_type="scf", additional_settings=None, restart=False, nkpts=200):
+    def single_vasp_calc(self, calculation_type="scf", add_settings=None, restart=False, nkpts=200):
         """
         A self-contained function that runs a single VASP calculation
         :param nkpts:
         :param calculation_type:
-        :param additional_settings:
+        :param add_settings:
         :param restart:
         :return:
         """
-        if additional_settings is None:
-            additional_settings = {}
 
         with open(self.output_file, "a+") as vasp_out:
             # defining vasp settings
@@ -269,7 +315,7 @@ class VaspCalculations(object):
 
             # Update for each calculation type and addition setting desired
             vasp_settings.update(calculation_type)
-            vasp_settings.update(additional_settings)
+            vasp_settings.update(add_settings)
 
             if calculation_type == "bands":
                 vasp_settings.update(kpts=self.get_band_path(nkpts=nkpts))
@@ -277,7 +323,7 @@ class VaspCalculations(object):
             # run energy calculation
             structure, energy, result = self.run_vasp(vasp_settings)
             if result == "":
-                return structure
+                return structure, energy
             else:
                 raise ValueError
 
@@ -298,7 +344,7 @@ MnFe2O4_structure = read("./Cifs/MnFe2O4-Normal.cif")
 # MnFe2O4_structure = read("./relax/POSCAR")
 MnFe2O4_calculation = VaspCalculations(MnFe2O4_structure)
 
-MnFe2O4_calculation.get_band_path()
+MnFe2O4_calculation.get_band_path(nkpts=200)
 # k testing
 # k_test = MnFe2O4_tests.parameter_testing("k-points", [1, 2, 3])
 # ecut testing
