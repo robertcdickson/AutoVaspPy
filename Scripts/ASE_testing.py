@@ -317,7 +317,7 @@ class VaspCalculations(object):
             return structure, energy
 
     def single_vasp_calc(self, calculation_type="scf", add_settings=None, path_name="./", restart=False, nkpts=200,
-                         use_safe_file=False):
+                         use_safe_file=False, mags=None):
         """
         A self-contained function that runs a single VASP calculation
         :param use_safe_file:
@@ -344,10 +344,13 @@ class VaspCalculations(object):
 
             # Update for each calculation type and addition setting desired
             vasp_settings.update(self.parameters[calculation_type])
-            # vasp_settings.update(add_settings)
+            if add_settings:
+                vasp_settings.update(add_settings)
 
             if calculation_type == "bands":
                 vasp_settings.update(kpts=self.get_band_path(nkpts=nkpts))
+            if mags:
+                self.structure.set_initial_magnetic_moments(magmoms=mags)
 
             # run energy calculation
             structure, energy, result = self.run_vasp(vasp_settings)

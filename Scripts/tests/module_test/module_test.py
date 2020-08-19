@@ -2,10 +2,31 @@ from ASE_testing import VaspCalculations
 from ase.io import read
 
 MnFe2O4_structure = read("../../../Cifs/MnFe2O4-Normal.cif")
+
 MnFe2O4_Normal = VaspCalculations(MnFe2O4_structure)
+for atom in MnFe2O4_structure:
+    print(atom)
+
+"""for atom in MnFe2O4_structure:
+    print(atom)
+    atom.add("magmom = 6")"""
 
 # single scf
 # MnFe2O4_Normal.single_vasp_calc(path_name="./scf")
 
-#single bands
-MnFe2O4_Normal.single_vasp_calc(calculation_type="bands", path_name="./bands", use_safe_file=False, nkpts=50)
+# single bands
+# MnFe2O4_Normal.single_vasp_calc(calculation_type="bands", path_name="./bands", use_safe_file=False, nkpts=50)
+
+# magnetism
+
+
+# hubbard
+hubbard = {
+    "ldau_ldj": {'Mn': {'L': 2, 'U': 3.9, 'J': 0},
+                 'Fe': {'L': 2, 'U': 5.3, 'J': 0}}
+}
+
+# magnetic and hubbard calculation
+MnFe2O4_Normal.single_vasp_calc(calculation_type="scf", add_settings=hubbard,
+                                path_name="./scf-mag", use_safe_file=True,
+                                mags=[6, 6, 6, 6, -6, -6, 0, 0, 0, 0, 0, 0, 0, 0])
