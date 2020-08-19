@@ -320,6 +320,7 @@ class VaspCalculations(object):
                          use_safe_file=False):
         """
         A self-contained function that runs a single VASP calculation
+        :param use_safe_file:
         :param path_name:
         :param nkpts:
         :param calculation_type:
@@ -334,9 +335,10 @@ class VaspCalculations(object):
 
         # if safe files to be used copy to cwd
         if use_safe_file:
-            shutil.copy2(self.owd + "safe/*", "./")
+            os.system(f"cp {self.owd}/safe/* ./")
 
         with open(self.output_file, "a+") as vasp_out:
+
             # defining vasp settings
             vasp_settings = self.general_calculation.copy()
 
@@ -350,6 +352,7 @@ class VaspCalculations(object):
             # run energy calculation
             structure, energy, result = self.run_vasp(vasp_settings)
             os.chdir(self.owd)
+
             if result == "":
                 return structure, energy
             else:
