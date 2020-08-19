@@ -110,6 +110,8 @@ class VaspCalculations(object):
         self.output_file = output_file
         self.tests = tests
 
+        self.owd = os.getcwd()
+
     def parameter_testing(self, test, values):
         # ------------------------------------------------------------------ #
         #  This function allows for testing of many different values for a   #
@@ -202,26 +204,25 @@ class VaspCalculations(object):
             
                 relax <-> scf <-> dos/bands/eps
                 
-            
+            Would also like a series of standard calculation sequences 
             """
 
             # make separate directories for each calculation
             path = f"./{calc}"
-            os.mkdir(path)
 
             # if desired, copy CHGCAR or WAVECAR
             if chg[i]:
                 shutil.copy2("./SAFE/CHGCAR", path)
             if wavecar[i]:
                 shutil.copy2("./SAFE/WAVECAR", path)
-            os.chdir(path)
 
             # relax uses self.relax_struct(), whereas all other calculations used self.single_vasp_calc()
             if calc == "relax":
-                current_struct, energy = self.relax_struct()
+                current_struct, energy = self.relax_struct(path_name=path)
             else:
                 # run calculation
-                current_struct, energy = self.single_vasp_calc(calculation_type=calc, add_settings=add_settings)
+                current_struct, energy = self.single_vasp_calc(calculation_type=calc, add_settings=add_settings,
+                                                               path_name=path, use_safe_file=False)
                 # TODO: do I need an exception check here?
             print(current_struct, energy)
 
@@ -267,7 +268,7 @@ class VaspCalculations(object):
 
         return structure, energy, result
 
-    def relax_struct(self, add_settings=None, path_name="./relax"):
+    def relax_struct(self, add_settings=None, path_name="./relax", safe_files=False):
 
         if not os.path.exists(path_name):
             os.mkdir(path_name)
@@ -286,28 +287,49 @@ class VaspCalculations(object):
 
             converged = False
             while not converged:
-                # run calculation
-                structure, energy, result = self.run_vasp(vasp_settings)
-                vasp_settings.update({"ICHARG": 1})
-                if converged_in_one_scf_cycle("OUTCAR"):
-                    break
 
                 # Copy CONTCAR to POSCAR for next stage of calculation -- use "copy2()" because it copies metadata
                 # and permissions
                 if os.path.isfile("CONTCAR"):
                     shutil.copy2("CONTCAR", "POSCAR")
+                    vasp_settings.update({"icharg": 1})
 
+                # run calculation
+                structure, energy, result = self.run_vasp(vasp_settings)
+                if converged_in_one_scf_cycle("OUTCAR"):
+                    break
+
+            if safe_files:
+                safe_dir = self.owd + "/safe"
+                if not os.path.exists(safe_dir):
+                    os.mkdir(safe_dir)
+
+                shutil.copy2("CONTCAR", safe_dir + "POSCAR")
+                shutil.copy2("CHGCAR", safe_dir)
+                shutil.copy2("WAVECAR", safe_dir)
+
+            os.chdir(self.owd)
             return structure, energy
 
-    def single_vasp_calc(self, calculation_type="scf", add_settings=None, restart=False, nkpts=200):
+    def single_vasp_calc(self, calculation_type="scf", add_settings=None, path_name="./", restart=False, nkpts=200,
+                         use_safe_file=False):
         """
         A self-contained function that runs a single VASP calculation
+        :param path_name:
         :param nkpts:
         :param calculation_type:
         :param add_settings:
         :param restart:
         :return:
         """
+
+        if not os.path.exists(path_name):
+            os.mkdir(path_name)
+        os.chdir(path_name)
+
+        # if safe files to be used copy to cwd
+        if use_safe_file:
+            shutil.copy2(self.owd + "safe/*", "./")
 
         with open(self.output_file, "a+") as vasp_out:
             # defining vasp settings
@@ -322,6 +344,7 @@ class VaspCalculations(object):
 
             # run energy calculation
             structure, energy, result = self.run_vasp(vasp_settings)
+            os.chdir(self.owd)
             if result == "":
                 return structure, energy
             else:
