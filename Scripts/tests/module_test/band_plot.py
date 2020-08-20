@@ -2,7 +2,7 @@ from pymatgen.io.vasp.outputs import Vasprun
 from pymatgen.electronic_structure.plotter import BSPlotter
 from pymatgen.electronic_structure.bandstructure import BandStructure
 
-vaspout = Vasprun("./bands/vasprun.xml")
+vaspout = Vasprun("./bands-mag/vasprun.xml")
 bandstr = vaspout.get_band_structure(line_mode=True)
 
 print(bandstr.get_band_gap())
