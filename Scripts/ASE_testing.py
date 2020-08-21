@@ -198,7 +198,7 @@ class VaspCalculations(object):
 
     def calc_manager(self, calc_seq=None, add_settings=None, mags=None):
 
-        relaxation_w_mag = ["relax", "relax-mag"]
+        relaxation_w_mag = ["relax", "relax-mag"] # currently on testing
         bands_w_mag = ["scf", "scf-mag", "bands-mag"]
         eps = ["scf", "scf-high-k", "eps"]
         hse06_bands = ["scf", "hse06"]
@@ -238,7 +238,7 @@ class VaspCalculations(object):
             path = f"./{calc}"
 
             # check if individual calculation is magnetic
-            if calc.find("mag"):
+            if calc.find("mag") != -1:
                 mag_moments = mags
                 print("Calculation is magnetic")
             else:
@@ -247,11 +247,15 @@ class VaspCalculations(object):
             # relax uses self.relax_struct(), whereas all other calculations used self.single_vasp_calc()
             # the string "find" function is used to find any (mag or non-mag) relaxations
             if calc.find("relax") != -1:
-                current_struct, energy = self.relax_struct(path_name=path, safe_files=True)
+                current_struct, energy = self.relax_struct(path_name=path, safe_files=True, mags=mag_moments)
             else:
                 # run calculation
-                current_struct, energy = self.single_vasp_calc(calculation_type=calc, add_settings=add_settings,
-                                                               path_name=path, use_safe_file=True, mags=mag_moments)
+                current_struct, energy = self.single_vasp_calc(calculation_type=calc,
+                                                               add_settings=add_settings,
+                                                               path_name=path,
+                                                               use_safe_file=True,
+                                                               safe_dir=calc_seq[i-1],
+                                                               mags=mag_moments)
                 # TODO: do I need an exception check here?
             print(current_struct, energy)
 
@@ -297,7 +301,7 @@ class VaspCalculations(object):
 
         return structure, energy, result
 
-    def relax_struct(self, add_settings=None, path_name="./relax", safe_files=False):
+    def relax_struct(self, add_settings=None, path_name="./relax", safe_files=False, mags=False):
 
         if not os.path.exists(path_name):
             os.mkdir(path_name)
@@ -313,6 +317,9 @@ class VaspCalculations(object):
             # update for any addition settings wanted
             if add_settings:
                 vasp_settings.update(add_settings)
+
+            if mags:
+                self.structure.set_initial_magnetic_moments(magmoms=mags)
 
             converged = False
             while not converged:
@@ -341,9 +348,10 @@ class VaspCalculations(object):
             return structure, energy
 
     def single_vasp_calc(self, calculation_type="scf", add_settings=None, path_name="./", restart=False, nkpts=200,
-                         use_safe_file=False, mags=None):
+                         use_safe_file=False, safe_dir="./safe", mags=None):
         """
         A self-contained function that runs a single VASP calculation
+        :param safe_dir:
         :param mags:
         :param use_safe_file:
         :param path_name:
@@ -360,7 +368,7 @@ class VaspCalculations(object):
 
         # if safe files to be used copy to cwd
         if use_safe_file:
-            os.system(f"cp {self.owd}/safe/* ./")
+            os.system(f"cp {self.owd}/{safe_dir}/* ./")
 
         with open(self.output_file, "a+") as vasp_out:
 
@@ -374,6 +382,7 @@ class VaspCalculations(object):
 
             if calculation_type == "bands":
                 vasp_settings.update(kpts=self.get_band_path(nkpts=nkpts))
+                # os.system(f"cp {self.owd}/{safe_dir}/* ./")
             if mags:
                 self.structure.set_initial_magnetic_moments(magmoms=mags)
 
