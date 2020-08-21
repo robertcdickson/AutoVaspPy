@@ -4,8 +4,6 @@ from ase.io import read
 MnFe2O4_structure = read("../../../Cifs/MnFe2O4-Normal.cif")
 
 MnFe2O4_Normal = VaspCalculations(MnFe2O4_structure)
-for atom in MnFe2O4_structure:
-    print(atom)
 
 """for atom in MnFe2O4_structure:
     print(atom)
@@ -29,7 +27,7 @@ for atom in MnFe2O4_structure:
                                 mags=[6, 6, 6, 6, -6, -6, 0, 0, 0, 0, 0, 0, 0, 0])"""
 
 # loop to test multiple hubbard values
-for i in range(3, 7):
+"""for i in range(3, 7):
     for j in range(3, 7):
         hubbard = {
             "ldau_luj": {'Mn': {'L': 2, 'U': i, 'J': 0},
@@ -37,4 +35,6 @@ for i in range(3, 7):
         }
         MnFe2O4_Normal.single_vasp_calc(calculation_type="bands", add_settings=hubbard,
                                         path_name=f"./hub_Mn-{i}_Fe-{j}", use_safe_file=True,
-                                        mags=[6, 6, 6, 6, -6, -6, 0, 0, 0, 0, 0, 0, 0, 0])
+                                        mags=[6, 6, 6, 6, -6, -6, 0, 0, 0, 0, 0, 0, 0, 0])"""
+
+MnFe2O4_Normal.get_band_path(40)

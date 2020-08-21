@@ -63,7 +63,7 @@ def converged_in_one_scf_cycle(outcar_file):
 
 
 class VaspCalculations(object):
-    def __init__(self, structure, calculations=None, tests=None, output_file="output.out", hubbard_parameters=None):
+    def __init__(self, structure, calculations=None, tests=None, output_file="output.out", hubbard_parameters=None, ):
         """
 
         :param structure:
@@ -106,7 +106,11 @@ class VaspCalculations(object):
                         "ldauprint": 2}
         }
 
-        self.structure = structure
+        if os.path.exists("./safe/POSCAR"):
+            self.structure = read("./safe/POSCAR")
+        else:
+            self.structure = structure
+
         self.calculations = calculations
         self.output_file = output_file
         self.tests = tests
@@ -183,18 +187,36 @@ class VaspCalculations(object):
 
         return energies
 
-    def calc_manager(self, calc_seq=None, wavecar=None, chg=None, add_settings=None):
+    def make_hse_kpoints(self, ibz_file, nkpts):
+        """ This function aims to make the KPOINTS file needed for hybrid functional band structures
+
+
+        :return:
+        """
+        shutil.copy2(ibz_file, "./KPOINTS")
+        band_path = self.get_band_path(nkpts=nkpts)
+
+    def calc_manager(self, calc_seq=None, add_settings=None, mags=None):
+
+        relaxation_w_mag = ["relax", "relax-mag"]
+        bands_w_mag = ["scf", "scf-mag", "bands-mag"]
+        eps = ["scf", "scf-high-k", "eps"]
+        hse06_bands = ["scf", "hse06"]
+
+        """
+        For HSE06 bands need to d an scf, get the IBZKPTS and WAVECAR files and use these with zero weight band k-path
+        for the HSE06 band structure
+        """
 
         # default calculation sequence is relaxation and scf
-        if chg is None:
-            chg = [True, False]
-        if wavecar is None:
-            wavecar = [False, True]
         if calc_seq is None:
             calc_seq = ["relax", "scf"]
 
         # loop through all calculations
         for i, calc in enumerate(calc_seq):
+            if os.path.exists("./safe/POSCAR"):
+                print("POSCAR exists in safe!")
+
             """
             Here we need different settings for all calculations:
                 
@@ -215,19 +237,21 @@ class VaspCalculations(object):
             # make separate directories for each calculation
             path = f"./{calc}"
 
-            # if desired, copy CHGCAR or WAVECAR
-            if chg[i]:
-                shutil.copy2("./SAFE/CHGCAR", path)
-            if wavecar[i]:
-                shutil.copy2("./SAFE/WAVECAR", path)
+            # check if individual calculation is magnetic
+            if calc.find("mag"):
+                mag_moments = mags
+                print("Calculation is magnetic")
+            else:
+                mag_moments = None
 
             # relax uses self.relax_struct(), whereas all other calculations used self.single_vasp_calc()
-            if calc == "relax":
-                current_struct, energy = self.relax_struct(path_name=path)
+            # the string "find" function is used to find any (mag or non-mag) relaxations
+            if calc.find("relax") != -1:
+                current_struct, energy = self.relax_struct(path_name=path, safe_files=True)
             else:
                 # run calculation
                 current_struct, energy = self.single_vasp_calc(calculation_type=calc, add_settings=add_settings,
-                                                               path_name=path, use_safe_file=False)
+                                                               path_name=path, use_safe_file=True, mags=mag_moments)
                 # TODO: do I need an exception check here?
             print(current_struct, energy)
 
@@ -320,6 +344,7 @@ class VaspCalculations(object):
                          use_safe_file=False, mags=None):
         """
         A self-contained function that runs a single VASP calculation
+        :param mags:
         :param use_safe_file:
         :param path_name:
         :param nkpts:
@@ -362,7 +387,7 @@ class VaspCalculations(object):
                 raise ValueError
 
     def get_band_path(self, nkpts):
-        # This defines the band structures from setwayan et al
+        # This defines the band structures from Setwayan et al
         lattice = self.structure.cell.get_bravais_lattice()
         path = bandpath(str(lattice.special_path), self.structure.cell, npoints=nkpts)
         print(path.kpts)
