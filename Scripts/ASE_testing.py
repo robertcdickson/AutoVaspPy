@@ -63,7 +63,7 @@ def converged_in_one_scf_cycle(outcar_file):
 
 
 class VaspCalculations(object):
-    def __init__(self, structure, calculations=None, tests=None, output_file="output.out", hubbard_parameters=None, ):
+    def __init__(self, structure, calculations=None, tests=None, output_file="output.out", hubbard_parameters=None):
         """
 
         :param structure:
@@ -116,6 +116,7 @@ class VaspCalculations(object):
         self.tests = tests
 
         self.owd = os.getcwd()
+        self.last_dir = "./safe"
 
     def parameter_testing(self, test, values):
         # ------------------------------------------------------------------ #
@@ -189,24 +190,27 @@ class VaspCalculations(object):
 
     def make_hse_kpoints(self, ibz_file, nkpts):
         """ This function aims to make the KPOINTS file needed for hybrid functional band structures
-
-
         :return:
         """
         shutil.copy2(ibz_file, "./KPOINTS")
         band_path = self.get_band_path(nkpts=nkpts)
 
-    def calc_manager(self, calc_seq=None, add_settings=None, mags=None):
+    def calc_manager(self, calc_seq=None, add_settings=None, mags=None, hubbard_params=None):
 
-        relaxation_w_mag = ["relax", "relax-mag"] # currently on testing
-        bands_w_mag = ["scf", "scf-mag", "bands-mag"]
+        relaxation_w_mag = ["relax", "relax-mag"]  # currently on testing
+        bands_w_mag = ["scf-mag", "bands-mag"]
         eps = ["scf", "scf-high-k", "eps"]
         hse06_bands = ["scf", "hse06"]
 
         """
-        For HSE06 bands need to d an scf, get the IBZKPTS and WAVECAR files and use these with zero weight band k-path
+        For HSE06 bands need to do an scf, get the IBZKPTS and WAVECAR files and use these with zero weight band k-path
         for the HSE06 band structure
         """
+
+        print("-" * 30)
+        print(f"Calculation sequence consists of: {calc_seq}")
+        print(f"Addition settings: {add_settings}")
+        print("-" * 30)
 
         # default calculation sequence is relaxation and scf
         if calc_seq is None:
@@ -214,6 +218,8 @@ class VaspCalculations(object):
 
         # loop through all calculations
         for i, calc in enumerate(calc_seq):
+            print(f"Beginning calculation: {calc} as calculation {i} in sequence")
+
             if os.path.exists("./safe/POSCAR"):
                 print("POSCAR exists in safe!")
 
@@ -236,11 +242,23 @@ class VaspCalculations(object):
 
             # make separate directories for each calculation
             path = f"./{calc}"
+            print(f"file path is {path}")
 
-            # check if individual calculation is magnetic
+            # check if individual calculation is magnetic and if hubbard parameters are specified
+            # magnetic check
             if calc.find("mag") != -1:
+                print("Calculation is magnetic. Are you sure you have specified magnetic moments?")
                 mag_moments = mags
-                print("Calculation is magnetic")
+
+                # hubbard check
+                if not hubbard_params:
+                    print("No hubbard parameters requested. Are you sure this calculation will converge without?")
+                else:
+                    # check if add_settings already exists and append ldau_luj values
+                    print(f"Hubbard values to be used are as follows: {hubbard_params}")
+                    if not add_settings:
+                        add_settings = {}
+                    add_settings["ldau_luj"] = hubbard_params
             else:
                 mag_moments = None
 
@@ -254,7 +272,7 @@ class VaspCalculations(object):
                                                                add_settings=add_settings,
                                                                path_name=path,
                                                                use_safe_file=True,
-                                                               safe_dir=calc_seq[i-1],
+                                                               safe_dir=self.last_dir,
                                                                mags=mag_moments)
                 # TODO: do I need an exception check here?
             print(current_struct, energy)
@@ -306,6 +324,7 @@ class VaspCalculations(object):
         if not os.path.exists(path_name):
             os.mkdir(path_name)
         os.chdir(path_name)
+        self.last_dir = path_name
 
         with open(self.output_file, "a+") as vasp_out:
             # defining vasp settings
@@ -365,6 +384,7 @@ class VaspCalculations(object):
         if not os.path.exists(path_name):
             os.mkdir(path_name)
         os.chdir(path_name)
+        self.last_dir = path_name
 
         # if safe files to be used copy to cwd
         if use_safe_file:
