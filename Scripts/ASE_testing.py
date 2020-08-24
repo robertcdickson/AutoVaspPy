@@ -218,7 +218,7 @@ class VaspCalculations(object):
 
         # loop through all calculations
         for i, calc in enumerate(calc_seq):
-            print(f"Beginning calculation: {calc} as calculation {i} in sequence")
+            print(f"Beginning calculation: {calc} as calculation {i + 1} in sequence")
 
             if os.path.exists("./safe/POSCAR"):
                 print("POSCAR exists in safe!")
@@ -265,7 +265,8 @@ class VaspCalculations(object):
             # relax uses self.relax_struct(), whereas all other calculations used self.single_vasp_calc()
             # the string "find" function is used to find any (mag or non-mag) relaxations
             if calc.find("relax") != -1:
-                current_struct, energy = self.relax_struct(path_name=path, safe_files=True, mags=mag_moments)
+                current_struct, energy = self.relax_struct(path_name=path, use_safe_files=True, write_safe_files=True,
+                                                           mags=mag_moments)
             else:
                 # run calculation
                 current_struct, energy = self.single_vasp_calc(calculation_type=calc,
@@ -319,11 +320,19 @@ class VaspCalculations(object):
 
         return structure, energy, result
 
-    def relax_struct(self, add_settings=None, path_name="./relax", safe_files=False, mags=False):
+    def relax_struct(self, add_settings=None, path_name="./relax", use_safe_files=False,
+                     write_safe_files=False, mags=False):
 
         if not os.path.exists(path_name):
             os.mkdir(path_name)
         os.chdir(path_name)
+
+        if use_safe_files:
+            safe_dir = self.owd + "/safe"
+            shutil.copy2(safe_dir + "POSCAR", "./")
+            shutil.copy2(safe_dir + "CHGCAR", "./")
+            shutil.copy2(safe_dir + "WAVECAR", "./")
+
         self.last_dir = path_name
 
         with open(self.output_file, "a+") as vasp_out:
@@ -337,6 +346,7 @@ class VaspCalculations(object):
             if add_settings:
                 vasp_settings.update(add_settings)
 
+            # add magnetic moments to structure object
             if mags:
                 self.structure.set_initial_magnetic_moments(magmoms=mags)
 
@@ -354,7 +364,7 @@ class VaspCalculations(object):
                 if converged_in_one_scf_cycle("OUTCAR"):
                     break
 
-            if safe_files:
+            if write_safe_files:
                 safe_dir = self.owd + "/safe"
                 if not os.path.exists(safe_dir):
                     os.mkdir(safe_dir)
