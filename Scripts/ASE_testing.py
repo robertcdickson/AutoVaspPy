@@ -247,7 +247,12 @@ class VaspCalculations(object):
             # check if individual calculation is magnetic and if hubbard parameters are specified
             # magnetic check
             if calc.find("mag") != -1:
-                print("Calculation is magnetic. Are you sure you have specified magnetic moments?")
+
+                print("Calculation is magnetic")
+
+                if not mags:
+                    print("No magnetic moments are specified. Are you sure this is correct?")
+
                 mag_moments = mags
 
                 # hubbard check
@@ -256,6 +261,7 @@ class VaspCalculations(object):
                 else:
                     # check if add_settings already exists and append ldau_luj values
                     print(f"Hubbard values to be used are as follows: {hubbard_params}")
+
                     if not add_settings:
                         add_settings = {}
                     add_settings["ldau_luj"] = hubbard_params
@@ -265,7 +271,8 @@ class VaspCalculations(object):
             # relax uses self.relax_struct(), whereas all other calculations used self.single_vasp_calc()
             # the string "find" function is used to find any (mag or non-mag) relaxations
             if calc.find("relax") != -1:
-                current_struct, energy = self.relax_struct(path_name=path, use_safe_files=True, write_safe_files=True,
+                current_struct, energy = self.relax_struct(path_name=path, add_settings=add_settings,
+                                                           use_safe_files=True, write_safe_files=True,
                                                            mags=mag_moments)
             else:
                 # run calculation
@@ -280,7 +287,7 @@ class VaspCalculations(object):
 
         print(f"Calculations on {calc_seq}")
 
-    def run_vasp(self, vasp_settings):
+    def run_vasp(self, vasp_settings, restart=False):
         """
         Run a single VASP calculation using an ASE calculator.
         This routine will make use of WAVECAR and CONTCAR files if they are available.
@@ -310,7 +317,7 @@ class VaspCalculations(object):
         # Use ASE calculator -- the use of **kwargs in the function call allows us to set the desired arguments using a
         # dictionary
         structure = self.structure
-        structure.set_calculator(Vasp(**vasp_settings))
+        structure.set_calculator(Vasp(**vasp_settings, restart=restart))
 
         # Run calculation, and consider any exception to be a VASP failure
         try:
@@ -329,9 +336,9 @@ class VaspCalculations(object):
 
         if use_safe_files:
             safe_dir = self.owd + "/safe"
-            shutil.copy2(safe_dir + "POSCAR", "./")
-            shutil.copy2(safe_dir + "CHGCAR", "./")
-            shutil.copy2(safe_dir + "WAVECAR", "./")
+            shutil.copy2(safe_dir + "/POSCAR", "./")
+            shutil.copy2(safe_dir + "/CHGCAR", "./")
+            shutil.copy2(safe_dir + "/WAVECAR", "./")
 
         self.last_dir = path_name
 
@@ -357,6 +364,7 @@ class VaspCalculations(object):
                 # and permissions
                 if os.path.isfile("CONTCAR"):
                     shutil.copy2("CONTCAR", "POSCAR")
+                    # self.structure
                     vasp_settings.update({"icharg": 1})
 
                 # run calculation
