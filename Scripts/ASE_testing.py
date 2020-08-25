@@ -117,6 +117,7 @@ class VaspCalculations(object):
 
         self.owd = os.getcwd()
         self.last_dir = "./safe"
+        self.safe_dir = self.owd + "/safe"
 
     def parameter_testing(self, test, values):
         # ------------------------------------------------------------------ #
@@ -195,10 +196,12 @@ class VaspCalculations(object):
         shutil.copy2(ibz_file, "./KPOINTS")
         band_path = self.get_band_path(nkpts=nkpts)
 
-    def calc_manager(self, calc_seq=None, add_settings=None, mags=None, hubbard_params=None):
+        # TODO: Clean and finish this
 
-        relaxation_w_mag = ["relax", "relax-mag"]  # currently on testing
-        bands_w_mag = ["scf-mag", "bands-mag"]
+    def calc_manager(self, calc_seq=None, add_settings=None, mags=None, hubbard_params=None, nkpts=200):
+
+        relaxation_w_mag = ["relax", "relax-mag"]  # works!
+        bands_w_mag = ["scf-mag", "bands-mag"]  # currently on testing
         eps = ["scf", "scf-high-k", "eps"]
         hse06_bands = ["scf", "hse06"]
 
@@ -281,7 +284,8 @@ class VaspCalculations(object):
                                                                path_name=path,
                                                                use_safe_file=True,
                                                                safe_dir=self.last_dir,
-                                                               mags=mag_moments)
+                                                               mags=mag_moments,
+                                                               nkpts=nkpts)
                 # TODO: do I need an exception check here?
             print(current_struct, energy)
 
@@ -335,10 +339,8 @@ class VaspCalculations(object):
         os.chdir(path_name)
 
         if use_safe_files:
-            safe_dir = self.owd + "/safe"
-            shutil.copy2(safe_dir + "/POSCAR", "./")
-            shutil.copy2(safe_dir + "/CHGCAR", "./")
-            shutil.copy2(safe_dir + "/WAVECAR", "./")
+            os.system(f"cp {self.safe_dir}/* ./")
+            self.structure = read("./POSCAR")
 
         self.last_dir = path_name
 
@@ -413,8 +415,12 @@ class VaspCalculations(object):
             # defining vasp settings
             vasp_settings = self.general_calculation.copy()
 
+            # check magnetism
+            if mags:
+                self.structure.set_initial_magnetic_moments(magmoms=mags)
+
             # Update for each calculation type and addition setting desired
-            vasp_settings.update(self.parameters[calculation_type])
+            vasp_settings.update(self.parameters[calculation_type.strip("-mag")])
             if add_settings:
                 vasp_settings.update(add_settings)
 
