@@ -286,7 +286,6 @@ class VaspCalculations(object):
                                                                    use_last_file=True,
                                                                    mags=mag_moments,
                                                                    nkpts=nkpts)
-                    # TODO: do I need an exception check here?
                 wo.write(current_struct + "|" + str(energy) + "\n")
 
             wo.write(f"Calculations on {calc_seq} \n")
@@ -336,57 +335,58 @@ class VaspCalculations(object):
     def relax_struct(self, add_settings=None, path_name="./relax", use_safe_files=False,
                      write_safe_files=False, mags=False):
 
+        # check if directory already exists and if not change to directory
         if not os.path.exists(path_name):
             os.mkdir(path_name)
         os.chdir(path_name)
 
         if use_safe_files:
             os.system(f"cp {self.safe_dir}/* ./")
-            self.structure = read("./POSCAR")
 
         self.last_dir = path_name
 
-        with open(self.output_file, "a+") as vasp_out:
-            # defining vasp settings
-            vasp_settings = self.general_calculation.copy()
+        # defining vasp settings
+        vasp_settings = self.general_calculation.copy()
 
-            # update for relaxation type and adjust any additional parameters
-            vasp_settings.update(self.relax)
+        # update for relaxation type and adjust any additional parameters
+        vasp_settings.update(self.relax)
 
-            # update for any addition settings wanted
-            if add_settings:
-                vasp_settings.update(add_settings)
+        # update for any addition settings wanted
+        if add_settings:
+            vasp_settings.update(add_settings)
 
-            # add magnetic moments to structure object
-            if mags:
-                self.structure.set_initial_magnetic_moments(magmoms=mags)
+        # add magnetic moments to structure object
+        if mags:
+            self.structure.set_initial_magnetic_moments(magmoms=mags)
 
-            converged = False
-            while not converged:
 
-                # Copy CONTCAR to POSCAR for next stage of calculation -- use "copy2()" because it copies metadata
-                # and permissions
-                if os.path.isfile("CONTCAR"):
-                    shutil.copy2("CONTCAR", "POSCAR")
-                    # self.structure
-                    vasp_settings.update({"icharg": 1})
+        converged = False
+        while not converged:
 
-                # run calculation
-                structure, energy, result = self.run_vasp(vasp_settings)
-                if converged_in_one_scf_cycle("OUTCAR"):
-                    break
+            # Copy CONTCAR to POSCAR for next stage of calculation -- use "copy2()" because it copies metadata
+            # and permissions
+            if os.path.isfile("CONTCAR"):
+                shutil.copy2("CONTCAR", "POSCAR")
+                self.structure = read("./POSCAR")  # need to read in the new POSCAR after every run for consistency
 
-            if write_safe_files:
-                safe_dir = self.owd + "/safe"
-                if not os.path.exists(safe_dir):
-                    os.mkdir(safe_dir)
+                vasp_settings.update({"icharg": 1})
 
-                shutil.copy2("CONTCAR", safe_dir + "POSCAR")
-                shutil.copy2("CHGCAR", safe_dir)
-                shutil.copy2("WAVECAR", safe_dir)
+            # run calculation
+            structure, energy, result = self.run_vasp(vasp_settings)
+            if converged_in_one_scf_cycle("OUTCAR"):
+                break
 
-            os.chdir(self.owd)
-            return structure, energy
+        if write_safe_files:
+            safe_dir = self.owd + "/safe"
+            if not os.path.exists(safe_dir):
+                os.mkdir(safe_dir)
+
+            shutil.copy2("CONTCAR", safe_dir + "POSCAR")
+            shutil.copy2("CHGCAR", safe_dir)
+            shutil.copy2("WAVECAR", safe_dir)
+
+        os.chdir(self.owd)
+        return structure, energy
 
     def single_vasp_calc(self, calculation_type="scf", add_settings=None, path_name="./", nkpts=200,
                          use_safe_file=False, use_last_file=False, safe_dir="./safe", scf_save=True, mags=None):
@@ -410,51 +410,54 @@ class VaspCalculations(object):
 
         # if safe files to be used copy to cwd
         if use_safe_file:
-            os.system(f"cp {self.owd}/{safe_dir}/* ./")
+            shutil.copy2(self.safe_dir + "/POSCAR", "./")
+            shutil.copy2(self.safe_dir + "/CHGCAR", "./")
+            shutil.copy2(self.safe_dir + "/WAVECAR", "./")
         elif use_last_file:
-            os.system(f"cp {self.last_dir}/POSCAR ./")
-            os.system(f"cp {self.last_dir}/WAVECAR ./")
-            os.system(f"cp {self.last_dir}/CHGCAR ./")
+            shutil.copy2(self.last_dir + "/POSCAR", "./")
+            shutil.copy2(self.last_dir + "/CHGCAR", "./")
+            shutil.copy2(self.last_dir + "/WAVECAR", "./")
 
+        # rewrite the last_dir in case it is needed later
         self.last_dir = path_name
 
-        with open(self.output_file, "a+") as vasp_out:
 
-            # defining vasp settings
-            vasp_settings = self.general_calculation.copy()
 
-            # check for magnetism
-            if mags:
-                self.structure.set_initial_magnetic_moments(magmoms=mags)
+        # defining vasp settings
+        vasp_settings = self.general_calculation.copy()
 
-                # Update for each calculation type and addition setting desired
-                calc_strip = calculation_type.strip("-mag")
+        # check for magnetism
+        if mags:
+            self.structure.set_initial_magnetic_moments(magmoms=mags)
 
-            vasp_settings.update(self.parameters[calc_strip])
+        # Update for each calculation type and addition setting desired
+        calc_strip = calculation_type.strip("-mag")
 
-            if add_settings:
-                vasp_settings.update(add_settings)
+        vasp_settings.update(self.parameters[calc_strip])
 
-            if calculation_type == "bands" or calculation_type == "bands-mag":
-                vasp_settings.update(kpts=self.get_band_path(nkpts=nkpts))
+        if add_settings:
+            vasp_settings.update(add_settings)
 
-            # run energy calculation
-            structure, energy, result = self.run_vasp(vasp_settings)
-            os.chdir(self.owd)
+        if calculation_type == "bands" or calculation_type == "bands-mag":
+            vasp_settings.update(kpts=self.get_band_path(nkpts=nkpts))
 
-            if scf_save:
-                safe_dir = self.owd + "/safe/scf"
-                if not os.path.exists(safe_dir):
-                    os.mkdir(safe_dir)
+        # run energy calculation
+        structure, energy, result = self.run_vasp(vasp_settings)
+        os.chdir(self.owd)
 
-                shutil.copy2("./CONTCAR", safe_dir + "POSCAR")
-                shutil.copy2("./CHGCAR", safe_dir)
-                shutil.copy2("./WAVECAR", safe_dir)
+        if scf_save:
+            safe_dir = self.owd + "/safe/scf"
+            if not os.path.exists(safe_dir):
+                os.mkdir(safe_dir)
 
-            if result == "":
-                return structure, energy
-            else:
-                raise ValueError
+            shutil.copy2("./CONTCAR", safe_dir + "POSCAR")
+            shutil.copy2("./CHGCAR", safe_dir)
+            shutil.copy2("./WAVECAR", safe_dir)
+
+        if result == "":
+            return structure, energy
+        else:
+            raise ValueError
 
     def get_band_path(self, nkpts):
         # This defines the band structures from Setwayan et al
