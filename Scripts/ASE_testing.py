@@ -1,11 +1,8 @@
 from ase.calculators.vasp import Vasp
 from ase.io import read
 from ase.dft.kpoints import bandpath
-# import matplotlib.pyplot as plt
 import os
 import shutil
-
-# import ase.dft.kpoints
 
 # --------------------------------------------------------#
 #  This module aims to be able to automate calculations  #
@@ -18,7 +15,7 @@ inversion = ["inverse", "normal"]
 test_names = {"hubbard": [3.5, 4.0, 4.5, 5.0], "k-points": [6, 7, 8], "ecut": [500, 550, 600, 700]}
 functionals = ["PBE", "HSE06"]
 calculations_types = ["relax", "scf", "bands", "eps"]  # could have parameters for more complex optical calcs
-calculation_add_ons = ["functional", "magnetism" "hubbard", ]
+calculation_add_ons = ["functional", "magnetism" "hubbard"]
 
 """def band_k_path(struct=None, nkpts=20, view_path=False):
     plots the k-path suggested from Setawayan et al
@@ -191,6 +188,13 @@ class VaspCalculations(object):
 
     def make_hse_kpoints(self, ibz_file, nkpts):
         """ This function aims to make the KPOINTS file needed for hybrid functional band structures
+
+        The required sequence is as follows:
+        1.  standard non-hybrid DFT run
+        2.  using converged WAVECAR, hybrid-DFT run
+        3.  zero-weight KPOINTS run using IBZKPTS file from (2)
+
+        "Mind: Remove from the band structure plot the eigenvalues corresponding to the the regular k-points mesh."
         :return:
         """
         shutil.copy2(ibz_file, "./KPOINTS")
@@ -201,7 +205,7 @@ class VaspCalculations(object):
     def calc_manager(self, calc_seq=None, add_settings=None, mags=None, hubbard_params=None, nkpts=200):
 
         relaxation_w_mag = ["relax", "relax-mag"]  # works!
-        bands_w_mag = ["scf-mag", "bands-mag"]  # currently on testing
+        bands_w_mag = ["scf-mag", "bands-mag"]  # works w/o hubbard or magnetism
         eps = ["scf", "scf-high-k", "eps"]
         hse06_bands = ["scf", "hse06"]
 
@@ -312,6 +316,8 @@ class VaspCalculations(object):
             either "converged", "unconverged", "vasp failure", or "timed out"
         ---------------------------------------------------------------------------
         Paul Sharp 25/09/2017
+        :param vasp_settings:
+        :param restart:
         """
 
         # Set files for calculation
@@ -404,6 +410,7 @@ class VaspCalculations(object):
         if not os.path.exists(path_name):
             os.mkdir(path_name)
         os.chdir(path_name)
+
         self.last_dir = path_name
 
         # if safe files to be used copy to cwd
@@ -415,20 +422,18 @@ class VaspCalculations(object):
             # defining vasp settings
             vasp_settings = self.general_calculation.copy()
 
-            # check magnetism
+            # check for magnetism
             if mags:
                 self.structure.set_initial_magnetic_moments(magmoms=mags)
 
             # Update for each calculation type and addition setting desired
             vasp_settings.update(self.parameters[calculation_type.strip("-mag")])
+
             if add_settings:
                 vasp_settings.update(add_settings)
 
             if calculation_type == "bands":
                 vasp_settings.update(kpts=self.get_band_path(nkpts=nkpts))
-                # os.system(f"cp {self.owd}/{safe_dir}/* ./")
-            if mags:
-                self.structure.set_initial_magnetic_moments(magmoms=mags)
 
             # run energy calculation
             structure, energy, result = self.run_vasp(vasp_settings)
