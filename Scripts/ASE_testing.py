@@ -69,8 +69,7 @@ class VaspCalculations(object):
         :param output_file:
         :param hubbard_parameters:
         """
-        if calculations is None:
-            calculations = ["scf"]
+
         self.general_calculation = {"reciprocal": True,
                                     "xc": "PBE",
                                     "setups": 'materialsproject',
@@ -82,9 +81,9 @@ class VaspCalculations(object):
                                     "lorbit": 11}
 
         self.relax = {"ibrion": 2,  # determines how ions are moved and updated (MD or relaxation)
-                      "nsw": 50,  # number of ionic steps
-                      "isif": 3,
-                      "icharg": 1}
+                      "nsw": 50,    # number of ionic steps
+                      "isif": 3,    # allows for atomic positions, cell shape and cell volume as degrees of freedom
+                      "icharg": 1}  # read the CHGCAR file (if exists)
 
         self.parameters = {
             "scf": {"icharg": 2},
@@ -392,7 +391,7 @@ class VaspCalculations(object):
             os.chdir(self.owd)
             return structure, energy
 
-    def single_vasp_calc(self, calculation_type="scf", add_settings=None, path_name="./", restart=False, nkpts=200,
+    def single_vasp_calc(self, calculation_type="scf", add_settings=None, path_name="./", nkpts=200,
                          use_safe_file=False, safe_dir="./safe", mags=None):
         """
         A self-contained function that runs a single VASP calculation
@@ -403,7 +402,6 @@ class VaspCalculations(object):
         :param nkpts:
         :param calculation_type:
         :param add_settings:
-        :param restart:
         :return:
         """
 
@@ -427,7 +425,8 @@ class VaspCalculations(object):
                 self.structure.set_initial_magnetic_moments(magmoms=mags)
 
             # Update for each calculation type and addition setting desired
-            vasp_settings.update(self.parameters[calculation_type.strip("-mag")])
+            calculation_type = calculation_type.strip("-mag")
+            vasp_settings.update(self.parameters[calculation_type])
 
             if add_settings:
                 vasp_settings.update(add_settings)
