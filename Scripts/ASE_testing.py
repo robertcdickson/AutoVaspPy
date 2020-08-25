@@ -340,15 +340,19 @@ class VaspCalculations(object):
             os.mkdir(path_name)
         os.chdir(path_name)
 
-        if use_safe_files:
-            os.system(f"cp {self.safe_dir}/* ./")
+        # if safe files already exists use them
+        if os.path.exists(self.safe_dir):
+            shutil.copy2(self.safe_dir + "/POSCAR", "./")
+            shutil.copy2(self.safe_dir + "/CHGCAR", "./")
+            shutil.copy2(self.safe_dir + "/WAVECAR", "./")
 
+        # rewrite the last_dir in case it is needed later
         self.last_dir = path_name
 
-        # defining vasp settings
+        # copy vasp settings from standard set-up
         vasp_settings = self.general_calculation.copy()
 
-        # update for relaxation type and adjust any additional parameters
+        # update for relaxation type
         vasp_settings.update(self.relax)
 
         # update for any addition settings wanted
@@ -358,8 +362,9 @@ class VaspCalculations(object):
         # add magnetic moments to structure object
         if mags:
             self.structure.set_initial_magnetic_moments(magmoms=mags)
+            vasp_settings.update({"isif": 2, "ispin": 2})  # isif doesn't change cell shape which is necessary for mags
 
-
+        # while loop breaks when a relaxation converges in one ion relaxation step
         converged = False
         while not converged:
 
@@ -368,7 +373,6 @@ class VaspCalculations(object):
             if os.path.isfile("CONTCAR"):
                 shutil.copy2("CONTCAR", "POSCAR")
                 self.structure = read("./POSCAR")  # need to read in the new POSCAR after every run for consistency
-
                 vasp_settings.update({"icharg": 1})
 
             # run calculation
@@ -376,11 +380,13 @@ class VaspCalculations(object):
             if converged_in_one_scf_cycle("OUTCAR"):
                 break
 
+        # save files to a safe directory for future use
         if write_safe_files:
-            safe_dir = self.owd + "/safe"
+            safe_dir = self.safe_dir
             if not os.path.exists(safe_dir):
                 os.mkdir(safe_dir)
 
+            # copy CONTCAR to POSCAR to save new structure compatible with WAVECAR and CHGCAR
             shutil.copy2("CONTCAR", safe_dir + "POSCAR")
             shutil.copy2("CHGCAR", safe_dir)
             shutil.copy2("WAVECAR", safe_dir)
@@ -404,6 +410,7 @@ class VaspCalculations(object):
         :return:
         """
 
+        # check if directory already exists and if not change to directory
         if not os.path.exists(path_name):
             os.mkdir(path_name)
         os.chdir(path_name)
@@ -421,23 +428,23 @@ class VaspCalculations(object):
         # rewrite the last_dir in case it is needed later
         self.last_dir = path_name
 
-
-
-        # defining vasp settings
+        # copy vasp settings from standard set-up
         vasp_settings = self.general_calculation.copy()
 
         # check for magnetism
         if mags:
             self.structure.set_initial_magnetic_moments(magmoms=mags)
+            vasp_settings.update({"ispin": 2})
 
-        # Update for each calculation type and addition setting desired
+        # update settings for calculation type
         calc_strip = calculation_type.strip("-mag")
-
         vasp_settings.update(self.parameters[calc_strip])
 
+        # add any extra settings
         if add_settings:
             vasp_settings.update(add_settings)
 
+        # if band structure type calculation the get_band_path function for the k-point path
         if calculation_type == "bands" or calculation_type == "bands-mag":
             vasp_settings.update(kpts=self.get_band_path(nkpts=nkpts))
 
