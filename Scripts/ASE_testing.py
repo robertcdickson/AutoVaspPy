@@ -75,7 +75,7 @@ class VaspCalculations(object):
                                     "setups": 'materialsproject',
                                     "encut": 520,
                                     "kpts": [6, 6, 6],
-                                    "ismear": 1,
+                                    "ismear": 0,
                                     "sigma": 0.05,
                                     "prec": 'accurate',
                                     "lorbit": 11}
@@ -285,10 +285,7 @@ class VaspCalculations(object):
                                                                    use_last_file=True,
                                                                    mags=mag_moments,
                                                                    nkpts=nkpts)
-                wo.write(current_struct + "\n")
-                wo.write(energy)
-                wo.write("\n")
-
+                wo.write("Relaxation successfully converged in single ionic step!")
             wo.write(f"Calculations on {calc_seq} \n")
 
     def run_vasp(self, vasp_settings, restart=False):
@@ -343,6 +340,7 @@ class VaspCalculations(object):
 
         # if safe files already exists use them
         if os.path.exists(self.safe_dir):
+            self.structure = read(self.safe_dir + "/POSCAR")
             shutil.copy2(self.safe_dir + "/POSCAR", "./")
             shutil.copy2(self.safe_dir + "/CHGCAR", "./")
             shutil.copy2(self.safe_dir + "/WAVECAR", "./")
@@ -363,7 +361,7 @@ class VaspCalculations(object):
         # add magnetic moments to structure object
         if mags:
             self.structure.set_initial_magnetic_moments(magmoms=mags)
-            vasp_settings.update({"isif": 2, "ispin": 2})  # isif doesn't change cell shape which is necessary for mags
+            vasp_settings.update({"isif": 2, "ispin": 2, "icharg": 1})  # isif 2 doesn't change cell shape
 
         # while loop breaks when a relaxation converges in one ion relaxation step
         converged = False
@@ -384,9 +382,11 @@ class VaspCalculations(object):
         # save files to a safe directory for future use
         if write_safe_files:
             safe_dir = self.safe_dir
+            if not os.path.exists(safe_dir):
+                os.mkdir(safe_dir)
 
             # copy CONTCAR to POSCAR to save new structure compatible with WAVECAR and CHGCAR
-            shutil.copy2("CONTCAR", safe_dir + "POSCAR")
+            shutil.copy2("CONTCAR", safe_dir + "/POSCAR")
             shutil.copy2("CHGCAR", safe_dir)
             shutil.copy2("WAVECAR", safe_dir)
 
