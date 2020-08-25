@@ -214,10 +214,10 @@ class VaspCalculations(object):
         for the HSE06 band structure
         """
         with open(outfile, "a+") as wo:
-            wo.write("-" * 30)
-            wo.write(f"Calculation sequence consists of: {calc_seq}")
-            wo.write(f"Additional settings: {add_settings}")
-            wo.write("-" * 30)
+            wo.write("-" * 30 + "\n")
+            wo.write(f"Calculation sequence consists of: {calc_seq} \n")
+            wo.write(f"Additional settings: {add_settings} \n")
+            wo.write("-" * 30 + "\n")
 
             # default calculation sequence is relaxation and scf
             if calc_seq is None:
@@ -225,10 +225,10 @@ class VaspCalculations(object):
 
             # loop through all calculations
             for i, calc in enumerate(calc_seq):
-                wo.write(f"Beginning calculation: {calc} as calculation {i + 1} in sequence")
+                wo.write(f"Beginning calculation: {calc} as calculation {i + 1} in sequence \n")
 
                 if os.path.exists("./safe/POSCAR"):
-                    wo.write("POSCAR exists in safe!")
+                    wo.write("POSCAR exists in safe! \n")
 
                 """
                 Here we need different settings for all calculations:
@@ -249,21 +249,22 @@ class VaspCalculations(object):
 
                 # make separate directories for each calculation
                 path = f"./{calc}"
-                wo.write(f"file path is {path}")
+                wo.write(f"file path is {path} \n")
 
                 # check if individual calculation is magnetic and if hubbard parameters are specified
                 # magnetic check
                 if calc.find("mag") != -1:
-                    wo.write("Calculation is magnetic")
+                    wo.write("Calculation is magnetic \n")
                     if not mags:
-                        wo.write("No magnetic moments are specified. Are you sure this is correct?")
+                        wo.write("No magnetic moments are specified. Are you sure this is correct? \n")
                     mag_moments = mags
                     # hubbard check
                     if not hubbard_params:
-                        wo.write("No hubbard parameters requested. Are you sure this calculation will converge without?")
+                        wo.write("No hubbard parameters requested. Are you sure this calculation will converge "
+                                 "without? \n")
                     else:
                         # check if add_settings already exists and append ldau_luj values
-                        wo.write(f"Hubbard values to be used are as follows: {hubbard_params}")
+                        wo.write(f"Hubbard values to be used are as follows: {hubbard_params} \n")
 
                         if not add_settings:
                             add_settings = {}
@@ -286,9 +287,9 @@ class VaspCalculations(object):
                                                                    mags=mag_moments,
                                                                    nkpts=nkpts)
                     # TODO: do I need an exception check here?
-                wo.write(current_struct + "|" + energy)
+                wo.write(current_struct + "|" + str(energy) + "\n")
 
-            wo.write(f"Calculations on {calc_seq}")
+            wo.write(f"Calculations on {calc_seq} \n")
 
     def run_vasp(self, vasp_settings, restart=False):
         """
@@ -429,13 +430,12 @@ class VaspCalculations(object):
                 # Update for each calculation type and addition setting desired
                 calc_strip = calculation_type.strip("-mag")
 
-            print(calculation_type)
             vasp_settings.update(self.parameters[calc_strip])
 
             if add_settings:
                 vasp_settings.update(add_settings)
 
-            if calculation_type == "bands":
+            if calculation_type == "bands" or calculation_type == "bands-mag":
                 vasp_settings.update(kpts=self.get_band_path(nkpts=nkpts))
 
             # run energy calculation

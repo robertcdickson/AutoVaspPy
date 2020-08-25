@@ -4,8 +4,8 @@ from pymatgen.electronic_structure.core import Spin
 from pymatgen.electronic_structure.bandstructure import BandStructure
 import os
 
-vaspout = BSVasprun("./hubbard/hub_Mn-3_Fe-5/vasprun.xml")
-# vaspout = BSVasprun("../calc_seq_test/bands-mag/vasprun.xml")
+vaspout = BSVasprun("./hubbard/hub_Mn-6_Fe-6/vasprun.xml")
+# vaspout = BSVasprun("../calc_seq_test/bands/vasprun.xml")
 bandstr = vaspout.get_band_structure(line_mode=True)
 
 print(bandstr.get_band_gap())
@@ -24,5 +24,7 @@ def get_band_gap(directory):
     print(band_gap)
     return band_gap
 
+
+get_band_gap("../calc_seq_test/bands-mag")
 # for directory in os.getcwd():
 #    get_band_gap(directory)
