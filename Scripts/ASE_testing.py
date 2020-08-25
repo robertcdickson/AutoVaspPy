@@ -199,7 +199,7 @@ class VaspCalculations(object):
         # TODO: Clean and finish this
 
     def calc_manager(self, calc_seq=None, add_settings=None, mags=None, hubbard_params=None, nkpts=200,
-                     outfile="vaspseq.out"):
+                     outfile="vasp_seq.out"):
 
         relaxation_w_mag = ["relax", "relax-mag"]  # works!
         bands_w_mag = ["scf-mag", "bands-mag"]  # works w/o hubbard or magnetism
@@ -285,7 +285,9 @@ class VaspCalculations(object):
                                                                    use_last_file=True,
                                                                    mags=mag_moments,
                                                                    nkpts=nkpts)
-                wo.write(current_struct + "|" + str(energy) + "\n")
+                wo.write(current_struct + "\n")
+                wo.write(energy)
+                wo.write("\n")
 
             wo.write(f"Calculations on {calc_seq} \n")
 
@@ -382,8 +384,6 @@ class VaspCalculations(object):
         # save files to a safe directory for future use
         if write_safe_files:
             safe_dir = self.safe_dir
-            if not os.path.exists(safe_dir):
-                os.mkdir(safe_dir)
 
             # copy CONTCAR to POSCAR to save new structure compatible with WAVECAR and CHGCAR
             shutil.copy2("CONTCAR", safe_dir + "POSCAR")
@@ -394,9 +394,10 @@ class VaspCalculations(object):
         return structure, energy
 
     def single_vasp_calc(self, calculation_type="scf", add_settings=None, path_name="./", nkpts=200,
-                         use_safe_file=False, use_last_file=False, safe_dir="./safe", scf_save=True, mags=None):
+                         use_safe_file=False, use_last_file=False, write_safe_files=False, mags=None):
         """
         A self-contained function that runs a single VASP calculation
+        :param write_safe_files:
         :param use_last_file:
         :param scf_save:
         :param safe_dir:
@@ -451,14 +452,14 @@ class VaspCalculations(object):
         structure, energy, result = self.run_vasp(vasp_settings)
         os.chdir(self.owd)
 
-        if scf_save:
-            safe_dir = self.owd + "/safe/scf"
-            if not os.path.exists(safe_dir):
-                os.mkdir(safe_dir)
+        # save files to a safe directory for future use
+        if write_safe_files:
+            safe_dir = self.safe_dir
 
-            shutil.copy2("./CONTCAR", safe_dir + "POSCAR")
-            shutil.copy2("./CHGCAR", safe_dir)
-            shutil.copy2("./WAVECAR", safe_dir)
+            # copy CONTCAR to POSCAR to save new structure compatible with WAVECAR and CHGCAR
+            shutil.copy2("CONTCAR", safe_dir + "POSCAR")
+            shutil.copy2("CHGCAR", safe_dir)
+            shutil.copy2("WAVECAR", safe_dir)
 
         if result == "":
             return structure, energy
