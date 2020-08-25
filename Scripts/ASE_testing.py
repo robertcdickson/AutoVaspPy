@@ -83,7 +83,7 @@ class VaspCalculations(object):
         self.relax = {"ibrion": 2,  # determines how ions are moved and updated (MD or relaxation)
                       "nsw": 50,  # number of ionic steps
                       "isif": 3,  # allows for atomic positions, cell shape and cell volume as degrees of freedom
-                      "icharg": 1}  # read the CHGCAR file (if exists)
+                      }
 
         self.parameters = {
             "scf": {"icharg": 2},
@@ -102,10 +102,7 @@ class VaspCalculations(object):
                         "ldauprint": 2}
         }
 
-        if os.path.exists("./safe/POSCAR"):
-            self.structure = read("./safe/POSCAR")
-        else:
-            self.structure = structure
+        self.structure = structure
 
         self.calculations = calculations
         self.output_file = output_file
@@ -213,6 +210,8 @@ class VaspCalculations(object):
         For HSE06 bands need to do an scf, get the IBZKPTS and WAVECAR files and use these with zero weight band k-path
         for the HSE06 band structure
         """
+
+        # all output of individual calculations is written to the one file (which note: is always open)
         with open(outfile, "a+") as wo:
             wo.write("-" * 30 + "\n")
             wo.write(f"Calculation sequence consists of: {calc_seq} \n")
