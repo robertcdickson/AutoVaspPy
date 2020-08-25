@@ -81,8 +81,8 @@ class VaspCalculations(object):
                                     "lorbit": 11}
 
         self.relax = {"ibrion": 2,  # determines how ions are moved and updated (MD or relaxation)
-                      "nsw": 50,    # number of ionic steps
-                      "isif": 3,    # allows for atomic positions, cell shape and cell volume as degrees of freedom
+                      "nsw": 50,  # number of ionic steps
+                      "isif": 3,  # allows for atomic positions, cell shape and cell volume as degrees of freedom
                       "icharg": 1}  # read the CHGCAR file (if exists)
 
         self.parameters = {
@@ -112,8 +112,8 @@ class VaspCalculations(object):
         self.tests = tests
 
         self.owd = os.getcwd()
-        self.last_dir = "./safe"
         self.safe_dir = self.owd + "/safe"
+        self.last_dir = self.safe_dir
 
     def parameter_testing(self, test, values):
         # ------------------------------------------------------------------ #
@@ -201,7 +201,8 @@ class VaspCalculations(object):
 
         # TODO: Clean and finish this
 
-    def calc_manager(self, calc_seq=None, add_settings=None, mags=None, hubbard_params=None, nkpts=200):
+    def calc_manager(self, calc_seq=None, add_settings=None, mags=None, hubbard_params=None, nkpts=200,
+                     outfile="vaspseq.out"):
 
         relaxation_w_mag = ["relax", "relax-mag"]  # works!
         bands_w_mag = ["scf-mag", "bands-mag"]  # works w/o hubbard or magnetism
@@ -212,86 +213,82 @@ class VaspCalculations(object):
         For HSE06 bands need to do an scf, get the IBZKPTS and WAVECAR files and use these with zero weight band k-path
         for the HSE06 band structure
         """
+        with open(outfile, "a+") as wo:
+            wo.write("-" * 30)
+            wo.write(f"Calculation sequence consists of: {calc_seq}")
+            wo.write(f"Additional settings: {add_settings}")
+            wo.write("-" * 30)
 
-        print("-" * 30)
-        print(f"Calculation sequence consists of: {calc_seq}")
-        print(f"Addition settings: {add_settings}")
-        print("-" * 30)
+            # default calculation sequence is relaxation and scf
+            if calc_seq is None:
+                calc_seq = ["relax", "scf"]
 
-        # default calculation sequence is relaxation and scf
-        if calc_seq is None:
-            calc_seq = ["relax", "scf"]
+            # loop through all calculations
+            for i, calc in enumerate(calc_seq):
+                wo.write(f"Beginning calculation: {calc} as calculation {i + 1} in sequence")
 
-        # loop through all calculations
-        for i, calc in enumerate(calc_seq):
-            print(f"Beginning calculation: {calc} as calculation {i + 1} in sequence")
+                if os.path.exists("./safe/POSCAR"):
+                    wo.write("POSCAR exists in safe!")
 
-            if os.path.exists("./safe/POSCAR"):
-                print("POSCAR exists in safe!")
-
-            """
-            Here we need different settings for all calculations:
+                """
+                Here we need different settings for all calculations:
+                    
+                    relax: unmodified -> magnetic
+                    scf: magnetic -> hubbard/HSE06 
+                    dos: usually same as scf; dos_settings can be changed (although usually LORBIT = 11)
+                    bands: scf CHGCAR always needed (?)
+                    eps: scf with high bands and k-points needed
+                    
+                These all needed saved individually in their respective directories and need to be able to check for other 
+                calculations already done as:
                 
-                relax: unmodified -> magnetic
-                scf: magnetic -> hubbard/HSE06 
-                dos: usually same as scf; dos_settings can be changed (although usually LORBIT = 11)
-                bands: scf CHGCAR always needed (?)
-                eps: scf with high bands and k-points needed
-                
-            These all needed saved individually in their respective directories and need to be able to check for other 
-            calculations already done as:
-            
-                relax <-> scf <-> dos/bands/eps
-                
-            Would also like a series of standard calculation sequences 
-            """
+                    relax <-> scf <-> dos/bands/eps
+                    
+                Would also like a series of standard calculation sequences 
+                """
 
-            # make separate directories for each calculation
-            path = f"./{calc}"
-            print(f"file path is {path}")
+                # make separate directories for each calculation
+                path = f"./{calc}"
+                wo.write(f"file path is {path}")
 
-            # check if individual calculation is magnetic and if hubbard parameters are specified
-            # magnetic check
-            if calc.find("mag") != -1:
+                # check if individual calculation is magnetic and if hubbard parameters are specified
+                # magnetic check
+                if calc.find("mag") != -1:
+                    wo.write("Calculation is magnetic")
+                    if not mags:
+                        wo.write("No magnetic moments are specified. Are you sure this is correct?")
+                    mag_moments = mags
+                    # hubbard check
+                    if not hubbard_params:
+                        wo.write("No hubbard parameters requested. Are you sure this calculation will converge without?")
+                    else:
+                        # check if add_settings already exists and append ldau_luj values
+                        wo.write(f"Hubbard values to be used are as follows: {hubbard_params}")
 
-                print("Calculation is magnetic")
-
-                if not mags:
-                    print("No magnetic moments are specified. Are you sure this is correct?")
-
-                mag_moments = mags
-
-                # hubbard check
-                if not hubbard_params:
-                    print("No hubbard parameters requested. Are you sure this calculation will converge without?")
+                        if not add_settings:
+                            add_settings = {}
+                        add_settings["ldau_luj"] = hubbard_params
                 else:
-                    # check if add_settings already exists and append ldau_luj values
-                    print(f"Hubbard values to be used are as follows: {hubbard_params}")
+                    mag_moments = None
 
-                    if not add_settings:
-                        add_settings = {}
-                    add_settings["ldau_luj"] = hubbard_params
-            else:
-                mag_moments = None
+                # relax uses self.relax_struct(), whereas all other calculations used self.single_vasp_calc()
+                # the string "find" function is used to find any (mag or non-mag) relaxations
+                if calc.find("relax") != -1:
+                    current_struct, energy = self.relax_struct(path_name=path, add_settings=add_settings,
+                                                               use_safe_files=True, write_safe_files=True,
+                                                               mags=mag_moments)
+                else:
+                    # run calculation
+                    current_struct, energy = self.single_vasp_calc(calculation_type=calc,
+                                                                   add_settings=add_settings,
+                                                                   path_name=path,
+                                                                   use_last_file=True,
+                                                                   mags=mag_moments,
+                                                                   nkpts=nkpts)
+                    # TODO: do I need an exception check here?
+                wo.write(current_struct + "|" + energy)
 
-            # relax uses self.relax_struct(), whereas all other calculations used self.single_vasp_calc()
-            # the string "find" function is used to find any (mag or non-mag) relaxations
-            if calc.find("relax") != -1:
-                current_struct, energy = self.relax_struct(path_name=path, add_settings=add_settings,
-                                                           use_safe_files=True, write_safe_files=True,
-                                                           mags=mag_moments)
-            else:
-                # run calculation
-                current_struct, energy = self.single_vasp_calc(calculation_type=calc,
-                                                               add_settings=add_settings,
-                                                               path_name=path,
-                                                               use_last_file=True,
-                                                               mags=mag_moments,
-                                                               nkpts=nkpts)
-                # TODO: do I need an exception check here?
-            print(current_struct, energy)
-
-        print(f"Calculations on {calc_seq}")
+            wo.write(f"Calculations on {calc_seq}")
 
     def run_vasp(self, vasp_settings, restart=False):
         """
@@ -414,8 +411,9 @@ class VaspCalculations(object):
         if use_safe_file:
             os.system(f"cp {self.owd}/{safe_dir}/* ./")
         elif use_last_file:
-            os.system(f"cp {self.last_dir}/{{POSCAR,WAVECAR,CHGCAR}} ./")
-
+            os.system(f"cp {self.last_dir}/POSCAR ./")
+            os.system(f"cp {self.last_dir}/WAVECAR ./")
+            os.system(f"cp {self.last_dir}/CHGCAR ./")
 
         self.last_dir = path_name
 
@@ -428,9 +426,11 @@ class VaspCalculations(object):
             if mags:
                 self.structure.set_initial_magnetic_moments(magmoms=mags)
 
-            # Update for each calculation type and addition setting desired
-            calculation_type = calculation_type.strip("-mag")
-            vasp_settings.update(self.parameters[calculation_type])
+                # Update for each calculation type and addition setting desired
+                calc_strip = calculation_type.strip("-mag")
+
+            print(calculation_type)
+            vasp_settings.update(self.parameters[calc_strip])
 
             if add_settings:
                 vasp_settings.update(add_settings)
@@ -447,9 +447,9 @@ class VaspCalculations(object):
                 if not os.path.exists(safe_dir):
                     os.mkdir(safe_dir)
 
-                shutil.copy2("CONTCAR", safe_dir + "POSCAR")
-                shutil.copy2("CHGCAR", safe_dir)
-                shutil.copy2("WAVECAR", safe_dir)
+                shutil.copy2("./CONTCAR", safe_dir + "POSCAR")
+                shutil.copy2("./CHGCAR", safe_dir)
+                shutil.copy2("./WAVECAR", safe_dir)
 
             if result == "":
                 return structure, energy
