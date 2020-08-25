@@ -285,8 +285,7 @@ class VaspCalculations(object):
                 current_struct, energy = self.single_vasp_calc(calculation_type=calc,
                                                                add_settings=add_settings,
                                                                path_name=path,
-                                                               use_safe_file=True,
-                                                               safe_dir=self.last_dir,
+                                                               use_last_file=True,
                                                                mags=mag_moments,
                                                                nkpts=nkpts)
                 # TODO: do I need an exception check here?
@@ -392,9 +391,11 @@ class VaspCalculations(object):
             return structure, energy
 
     def single_vasp_calc(self, calculation_type="scf", add_settings=None, path_name="./", nkpts=200,
-                         use_safe_file=False, safe_dir="./safe", mags=None):
+                         use_safe_file=False, use_last_file=False, safe_dir="./safe", scf_save=True, mags=None):
         """
         A self-contained function that runs a single VASP calculation
+        :param use_last_file:
+        :param scf_save:
         :param safe_dir:
         :param mags:
         :param use_safe_file:
@@ -409,11 +410,14 @@ class VaspCalculations(object):
             os.mkdir(path_name)
         os.chdir(path_name)
 
-        self.last_dir = path_name
-
         # if safe files to be used copy to cwd
         if use_safe_file:
             os.system(f"cp {self.owd}/{safe_dir}/* ./")
+        elif use_last_file:
+            os.system(f"cp {self.last_dir}/{{POSCAR,WAVECAR,CHGCAR}} ./")
+
+
+        self.last_dir = path_name
 
         with open(self.output_file, "a+") as vasp_out:
 
@@ -437,6 +441,15 @@ class VaspCalculations(object):
             # run energy calculation
             structure, energy, result = self.run_vasp(vasp_settings)
             os.chdir(self.owd)
+
+            if scf_save:
+                safe_dir = self.owd + "/safe/scf"
+                if not os.path.exists(safe_dir):
+                    os.mkdir(safe_dir)
+
+                shutil.copy2("CONTCAR", safe_dir + "POSCAR")
+                shutil.copy2("CHGCAR", safe_dir)
+                shutil.copy2("WAVECAR", safe_dir)
 
             if result == "":
                 return structure, energy
