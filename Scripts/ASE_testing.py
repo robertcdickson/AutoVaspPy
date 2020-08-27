@@ -271,9 +271,9 @@ class VaspCalculations(object):
                         # check if add_settings already exists and append ldau_luj values
                         wo.write(f"Hubbard values to be used are as follows: {hubbard_params} \n")
 
-                        if not add_settings_dict[i]:
-                            add_settings_dict[i] = {}
-                        add_settings_dict[i]["ldau_luj"] = hubbard_params
+                        if not add_settings_dict[calc]:
+                            add_settings_dict[calc] = {}
+                        add_settings_dict[calc]["ldau_luj"] = hubbard_params
                 else:
                     mag_moments = None
 
