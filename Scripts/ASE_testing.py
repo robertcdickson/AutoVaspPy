@@ -3,6 +3,7 @@ from ase.io import read
 from ase.dft.kpoints import bandpath
 import os
 import shutil
+import numpy as np
 
 # --------------------------------------------------------#
 #  This module aims to be able to automate calculations  #
@@ -78,7 +79,8 @@ class VaspCalculations(object):
                                     "ismear": 0,
                                     "sigma": 0.05,
                                     "prec": 'accurate',
-                                    "lorbit": 11}
+                                    "lorbit": 11,
+                                    "lasph": True}
 
         self.relax = {"ibrion": 2,  # determines how ions are moved and updated (MD or relaxation)
                       "nsw": 50,  # number of ionic steps
@@ -86,7 +88,8 @@ class VaspCalculations(object):
                       }
 
         self.parameters = {
-            "scf": {"icharg": 2},
+            # "scf": {"icharg": 2},
+            # TODO: Check if these parameters are correct
 
             "bands": {"icharg": 11},
 
@@ -198,8 +201,11 @@ class VaspCalculations(object):
 
         # TODO: Clean and finish this
 
-    def calc_manager(self, calc_seq=None, add_settings=None, mags=None, hubbard_params=None, nkpts=200,
+    def calc_manager(self, calc_seq=None, add_settings_dict=dict, mags=None, hubbard_params=None, nkpts=200,
                      outfile="vasp_seq.out"):
+
+        if add_settings_dict is None:
+            add_settings_dict = {}
 
         relaxation_w_mag = ["relax", "relax-mag"]  # works!
         bands_w_mag = ["scf-mag", "bands-mag"]  # works w/o hubbard or magnetism
@@ -215,7 +221,7 @@ class VaspCalculations(object):
         with open(outfile, "a+") as wo:
             wo.write("-" * 30 + "\n")
             wo.write(f"Calculation sequence consists of: {calc_seq} \n")
-            wo.write(f"Additional settings: {add_settings} \n")
+            wo.write(f"Additional settings: {add_settings_dict} \n")
             wo.write("-" * 30 + "\n")
 
             # default calculation sequence is relaxation and scf
@@ -265,26 +271,35 @@ class VaspCalculations(object):
                         # check if add_settings already exists and append ldau_luj values
                         wo.write(f"Hubbard values to be used are as follows: {hubbard_params} \n")
 
-                        if not add_settings:
-                            add_settings = {}
-                        add_settings["ldau_luj"] = hubbard_params
+                        if not add_settings_dict[i]:
+                            add_settings_dict[i] = {}
+                        add_settings_dict[i]["ldau_luj"] = hubbard_params
                 else:
                     mag_moments = None
 
                 # relax uses self.relax_struct(), whereas all other calculations used self.single_vasp_calc()
                 # the string "find" function is used to find any (mag or non-mag) relaxations
+
+                # used to determine whether to write a safe file or not
+                if calc.find("scf") != 1:
+                    wsf = True
+                else:
+                    wsf = False
+
                 if calc.find("relax") != -1:
-                    current_struct, energy = self.relax_struct(path_name=path, add_settings=add_settings,
-                                                               use_safe_files=True, write_safe_files=True,
+                    current_struct, energy = self.relax_struct(path_name=path, add_settings=add_settings_dict[i],
+                                                               write_safe_files=True,
                                                                mags=mag_moments)
                 else:
                     # run calculation
                     current_struct, energy = self.single_vasp_calc(calculation_type=calc,
-                                                                   add_settings=add_settings,
+                                                                   add_settings=add_settings_dict[i],
                                                                    path_name=path,
-                                                                   use_last_file=True,
+                                                                   use_safe_file=True,
+                                                                   write_safe_files=wsf,
                                                                    mags=mag_moments,
                                                                    nkpts=nkpts)
+
                 wo.write("Relaxation successfully converged in single ionic step!")
             wo.write(f"Calculations on {calc_seq} \n")
 
@@ -330,7 +345,7 @@ class VaspCalculations(object):
 
         return structure, energy, result
 
-    def relax_struct(self, add_settings=None, path_name="./relax", use_safe_files=False,
+    def relax_struct(self, add_settings=None, path_name="./relax",
                      write_safe_files=False, mags=False):
 
         # check if directory already exists and if not change to directory
@@ -393,10 +408,11 @@ class VaspCalculations(object):
         os.chdir(self.owd)
         return structure, energy
 
-    def single_vasp_calc(self, calculation_type="scf", add_settings=None, path_name="./", nkpts=200,
-                         use_safe_file=False, use_last_file=False, write_safe_files=False, mags=None):
+    def single_vasp_calc(self, calculation_type="scf", functional="PBE", add_settings=None, path_name="./", nkpts=200,
+                         use_safe_file=False, write_safe_files=False, mags=None):
         """
         A self-contained function that runs a single VASP calculation
+        :param functional:
         :param write_safe_files:
         :param use_last_file:
         :param scf_save:
@@ -420,10 +436,6 @@ class VaspCalculations(object):
             shutil.copy2(self.safe_dir + "/POSCAR", "./")
             shutil.copy2(self.safe_dir + "/CHGCAR", "./")
             shutil.copy2(self.safe_dir + "/WAVECAR", "./")
-        elif use_last_file:
-            shutil.copy2(self.last_dir + "/POSCAR", "./")
-            shutil.copy2(self.last_dir + "/CHGCAR", "./")
-            shutil.copy2(self.last_dir + "/WAVECAR", "./")
 
         # rewrite the last_dir in case it is needed later
         self.last_dir = path_name
@@ -440,6 +452,10 @@ class VaspCalculations(object):
         calc_strip = calculation_type.strip("-mag")
         vasp_settings.update(self.parameters[calc_strip])
 
+        # check for hybrid
+        if calculation_type.find("hse06") != -1:
+            vasp_settings.update()
+
         # add any extra settings
         if add_settings:
             vasp_settings.update(add_settings)
@@ -450,7 +466,6 @@ class VaspCalculations(object):
 
         # run energy calculation
         structure, energy, result = self.run_vasp(vasp_settings)
-        os.chdir(self.owd)
 
         # save files to a safe directory for future use
         if write_safe_files:
@@ -460,6 +475,8 @@ class VaspCalculations(object):
             shutil.copy2("CONTCAR", safe_dir + "POSCAR")
             shutil.copy2("CHGCAR", safe_dir)
             shutil.copy2("WAVECAR", safe_dir)
+
+        os.chdir(self.owd)
 
         if result == "":
             return structure, energy
@@ -472,6 +489,115 @@ class VaspCalculations(object):
         path = bandpath(str(lattice.special_path), self.structure.cell, npoints=nkpts)
         print(path.kpts)
         return path.kpts
+
+    def self_consistent_hubbard(self, species=None, setup_param=None, mag=False):
+        """
+
+        This function follows the work of the SI from Curnan and Kitchin
+
+        1. Get the bare intial chi0 and converged chi response matrices
+        2. an input U value (Uin) of 0 eV is applied to achieve an output U value (Uout) greater than 0 eV
+        3. Uout = χo −1 − χ−1
+
+        The four step scheme needs to be as follows:
+
+        1. Get relaxed structure for primitive and supercell structures
+        2. Using previous step, run scf at high precision
+
+        NOTE: the perturbed cation must be distinguished as its own species in the POSCAR and POTCAR files
+        3. using ICHARG = 11 and final orbital used to produce the initial response with LDAUTYPE = 3
+        and LDAUU and LDAUJ used to vary the quantity of spin-up and down perturbation contributions
+        4. scf calculation as in (3) but without using the CHGCAR in the same perturbation range
+
+        NOTE: spin cannot be ignored in these calculations
+
+        calc_seq = ["relax-mag",
+         "scf-mag; add_settings={"ediff": "1E-06"},
+         "scf-mag-bare"; add_settings={"icharg": 11, "ldautype": 3},
+         "scf-mag-"; add_settings={"icharg": 11, "ldautype": 3}]
+        :return:
+        """
+
+        if species is None:
+            species = {"Fe": "d", "O": ""}
+        if setup_param is None:
+            setup_param = {1: 'Fe'}
+
+        # hubb_dir is going to store the ldau_luj values
+        hubb_dir = {}
+
+        # loop to add all hubbards to hubb_dir
+        for atom in species:
+            if species[atom] == "d":
+                hubb_dir.update({atom: {'L': 2, 'U': 0, 'J': 0}})
+                active_species = atom
+            else:
+                hubb_dir.update({atom: {'L': -1, 'U': 0, 'J': 0}})
+
+        # alpha_range defines array of alpha values to be considered
+        alpha_range = np.arange(-0.15, 0.15, 0.05)
+
+        """# alter POSCAR so that the hubbard species is separated into two species
+        # open POSCAR and read in lines to list
+        with open("./POSCAR", "r") as rf:
+            lines = rf.readlines()
+
+
+        # for all line sin list check if the active species is in that line and replace with 2 active species
+        for i, line in enumerate(lines):
+            if line.find(active_species) != -1:
+                lines[i] = line.replace(f"{active_species}", f"{active_species} {active_species}")
+
+        # rewrite whole file
+        with open("./POSCAR", "w") as wf:
+            wf.writelines(lines)
+            
+            NB: This commented-out section is now obsolete upon revelation that the set-up keyword splits the POSCAR
+            automatically """
+
+        # This explicit setup keyword makes two different Fe species
+        setup_settings = {"setups": setup_param}
+
+        # run steps 1 and 2
+        """self.calc_manager(calc_seq=["relax", "relax-mag", "scf-mag"],
+                          add_settings=setup_settings, mags=None, hubbard_params=hubb_dir, outfile="vasp_seq.out")"""
+
+        # extra settings for steps 3 and 4
+        chi_settings = {"ldautype": 3}
+
+        # run steps 3 and 4 for each value of alpha
+        steps = [3, 4]
+        for step in steps:
+
+            # make subdirectory for steps 3 and 4 respectively
+            path_name = f"./{step}"
+            if not os.path.exists(path_name):
+                os.mkdir(path_name)
+            os.chdir(path_name)
+
+            # loop through all requested values of alpha
+            for alpha in alpha_range:
+                alpha_path = f"./{alpha}"
+                if not os.path.exists(alpha_path):
+                    os.mkdir(alpha_path)
+                os.chdir(alpha_path)
+
+                # update alpha value in hubb_dir
+                hubb_dir[active_species].update({'U': alpha, 'J': alpha})
+                chi_settings.update(hubb_dir)
+                # TODO: need to update hubbard settings too
+
+                if mag:
+                    mag = "-mag"
+
+                if step == 3:
+                    chi_settings.update({"icharg": 11})
+
+                elif step == 4:
+                    chi_settings.update({"icharg": 0})
+
+                self.single_vasp_calc("scf" + mag, add_settings=chi_settings, path_name="./",
+                                          use_safe_file=True)
 
     # TODO: Self-consistent hubbard set-up
     # TODO: Calculation Manager

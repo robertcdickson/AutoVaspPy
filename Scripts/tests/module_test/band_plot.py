@@ -4,8 +4,12 @@ from pymatgen.electronic_structure.core import Spin
 from pymatgen.electronic_structure.bandstructure import BandStructure
 import os
 
-vaspout = BSVasprun("./hubbard/hub_Mn-6_Fe-6/vasprun.xml")
-# vaspout = BSVasprun("../calc_seq_test/bands/vasprun.xml")
+# vaspout = BSVasprun("./hubbard/hub_Mn-5_Fe-5/vasprun.xml")
+vaspout = BSVasprun("../calc_seq_test/bands-mag/vasprun.xml")
+# 50 k-points = 0.3863000000000012 eV
+# 100 k-points = 0.38480000000000114 eV
+# 8x8x8 50 k-points = 0.39029999999999987 eV
+# 50 k-points with LASPH = 0.3932000000000002 eV
 bandstr = vaspout.get_band_structure(line_mode=True)
 
 print(bandstr.get_band_gap())
