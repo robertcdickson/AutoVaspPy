@@ -61,7 +61,8 @@ def converged_in_one_scf_cycle(outcar_file):
 
 
 class VaspCalculations(object):
-    def __init__(self, structure, calculations=None, tests=None, output_file="output.out", hubbard_parameters=None):
+    def __init__(self, structure, calculations=None, tests=None, output_file="output.out", hubbard_parameters=None,
+                 write_file=None):
         """
 
         :param structure:
@@ -115,6 +116,9 @@ class VaspCalculations(object):
         self.safe_dir = self.owd + "/safe"
         self.last_dir = self.safe_dir
 
+        self.write_file = write_file
+        self.f = open(self.write_file, "a+")
+
     def parameter_testing(self, test, values):
         # ------------------------------------------------------------------ #
         #  This function allows for testing of many different values for a   #
@@ -125,63 +129,61 @@ class VaspCalculations(object):
         # TODO: At the moment, output is only written at end of all calculations as with open statement ends
         #   This needs to be amended so output is written as each calculation finishes
 
-        # with open statement allows for continuous writing of output
-        with open(self.output_file, "a+") as out_file:
+        self.f.write("--------------------" * 50 + "\n")
+        self.f.write("{} testing with a list of values of {}\n".format(test, values))
 
-            out_file.write("--------------------\n")
-            out_file.write("{} testing with a list of values of {}\n".format(test, values))
+        # define path and check if directory exists
+        path_name = "./tests/{}".format(test)
 
-            # define path and check if directory exists
-            path_name = "./tests/{}".format(test)
+        if not os.path.exists(path_name):
+            os.mkdir(path_name)
+        os.chdir(path_name)
 
-            if not os.path.exists(path_name):
-                os.mkdir(path_name)
-            os.chdir(path_name)
+        self.f.write("Testing calculations running from the directory: {} \n".format(path_name))
+        self.f.write("{},Energy \n".format(test))
 
-            out_file.write("Testing calculations running from the directory: {} \n".format(path_name))
-            out_file.write("{} | Energy \n".format(test))
+        # list for storage of tested output
+        energies = []
 
-            # list for storage of tested output
-            energies = []
+        # append the general VASP keywords for the test
+        vasp_keywords = self.general_calculation.copy()
 
-            # append the general VASP keywords for the test
-            vasp_keywords = self.general_calculation.copy()
+        for test_value in values:
+            test_path = "./{}".format(test_value)
 
-            for test_value in values:
-                test_path = "./{}".format(test_value)
+            if not os.path.exists(test_path):
+                os.mkdir(test_path)
+            os.chdir(test_path)
 
-                if not os.path.exists(test_path):
-                    os.mkdir(test_path)
-                os.chdir(test_path)
+            # statements to find which type of test is being used
+            if test == "k-points":
+                test_variable = "kpts"
+                test_value = [test_value, test_value, test_value]
+            elif test == "ecut" or "encut":
+                test_variable = "encut"
+            else:
+                raise ValueError('Error: test requested is not implemented. Please check test argument and try '
+                                 'again.')
 
-                # statements to find which type of test is being used
-                if test == "k-points":
-                    test_variable = "kpts"
-                    test_value = [test_value, test_value, test_value]
-                elif test == "ecut" or "encut":
-                    test_variable = "encut"
-                else:
-                    raise ValueError('Error: test requested is not implemented. Please check test argument and try '
-                                     'again.')
+            # update keywords dictionary to have new test value
+            vasp_keywords.update({test_variable: test_value})
 
-                # update keywords dictionary to have new test value
-                vasp_keywords.update({test_variable: test_value})
+            # set calculator
+            self.structure.set_calculator(Vasp(**vasp_keywords))
 
-                # set calculator
-                self.structure.set_calculator(Vasp(**vasp_keywords))
+            # run calculation
+            try:
+                energy = self.structure.get_potential_energy()
+            except (TypeError, ValueError):
+                print("A VASP error has occurred in test: {} | {}. Please check again".format(test, test_value))
+                energy = 0
+            self.f.write("{},{}\n".format(test_value, energy))
 
-                # run calculation
-                try:
-                    energy = self.structure.get_potential_energy()
-                except (TypeError, ValueError):
-                    print("A VASP error has occurred in test: {} | {}. Please check again".format(test, test_value))
-                    energy = 0
-                out_file.write("| {} | {} | \n".format(test_value, energy))
+            energies.append(energy)
+            os.chdir("../")
 
-                energies.append(energy)
-                os.chdir("../")
-
-            out_file.write("--------------------\n")
+        self.f.write("Testing Finished!")
+        self.f.write("-" * 50 + "\n")
 
         return energies
 
@@ -218,90 +220,89 @@ class VaspCalculations(object):
         """
 
         # all output of individual calculations is written to the one file (which note: is always open)
-        with open(outfile, "a+") as wo:
-            wo.write("-" * 30 + "\n")
-            wo.write(f"Calculation sequence consists of: {calc_seq} \n")
-            wo.write(f"Additional settings: {add_settings_dict} \n")
-            wo.write("-" * 30 + "\n")
+        self.f.write("-" * 30 + "\n")
+        self.f.write(f"Calculation sequence consists of: {calc_seq} \n")
+        self.f.write(f"Additional settings: {add_settings_dict} \n")
+        self.f.write("-" * 30 + "\n")
 
-            # default calculation sequence is relaxation and scf
-            if calc_seq is None:
-                calc_seq = ["relax", "scf"]
+        # default calculation sequence is relaxation and scf
+        if calc_seq is None:
+            calc_seq = ["relax", "scf"]
 
-            # loop through all calculations
-            for i, calc in enumerate(calc_seq):
-                wo.write(f"Beginning calculation: {calc} as calculation {i + 1} in sequence \n")
+        # loop through all calculations
+        for i, calc in enumerate(calc_seq):
+            self.f.write(f"Beginning calculation: {calc} as calculation {i + 1} in sequence \n")
 
-                if os.path.exists("./safe/POSCAR"):
-                    wo.write("POSCAR exists in safe! \n")
+            if os.path.exists("./safe/POSCAR"):
+                self.f.write("POSCAR exists in safe! \n")
 
-                """
-                Here we need different settings for all calculations:
-                    
-                    relax: unmodified -> magnetic
-                    scf: magnetic -> hubbard/HSE06 
-                    dos: usually same as scf; dos_settings can be changed (although usually LORBIT = 11)
-                    bands: scf CHGCAR always needed (?)
-                    eps: scf with high bands and k-points needed
-                    
-                These all needed saved individually in their respective directories and need to be able to check for other 
-                calculations already done as:
+            """
+            Here we need different settings for all calculations:
                 
-                    relax <-> scf <-> dos/bands/eps
-                    
-                Would also like a series of standard calculation sequences 
-                """
+                relax: unmodified -> magnetic
+                scf: magnetic -> hubbard/HSE06 
+                dos: usually same as scf; dos_settings can be changed (although usually LORBIT = 11)
+                bands: scf CHGCAR always needed (?)
+                eps: scf with high bands and k-points needed
+                
+            These all needed saved individually in their respective directories and need to be able to check for other 
+            calculations already done as:
+            
+                relax <-> scf <-> dos/bands/eps
+                
+            Would also like a series of standard calculation sequences 
+            """
 
-                # make separate directories for each calculation
-                path = f"./{calc}"
-                wo.write(f"file path is {path} \n")
+            # make separate directories for each calculation
+            path = f"./{calc}"
+            self.f.write(f"file path is {path} \n")
 
-                # check if individual calculation is magnetic and if hubbard parameters are specified
-                # magnetic check
-                if calc.find("mag") != -1:
-                    wo.write("Calculation is magnetic \n")
-                    if not mags:
-                        wo.write("No magnetic moments are specified. Are you sure this is correct? \n")
-                    mag_moments = mags
-                    # hubbard check
-                    if not hubbard_params:
-                        wo.write("No hubbard parameters requested. Are you sure this calculation will converge "
+            # check if individual calculation is magnetic and if hubbard parameters are specified
+            # magnetic check
+            if calc.find("mag") != -1:
+                self.f.write("Calculation is magnetic \n")
+                if not mags:
+                    self.f.write("No magnetic moments are specified. Are you sure this is correct? \n")
+                mag_moments = mags
+                # hubbard check
+                if not hubbard_params:
+                    self.f.write("No hubbard parameters requested. Are you sure this calculation will converge "
                                  "without? \n")
-                    else:
-                        # check if add_settings already exists and append ldau_luj values
-                        wo.write(f"Hubbard values to be used are as follows: {hubbard_params} \n")
-
-                        if not add_settings_dict[calc]:
-                            add_settings_dict[calc] = {}
-                        add_settings_dict[calc]["ldau_luj"] = hubbard_params
                 else:
-                    mag_moments = None
+                    # check if add_settings already exists and append ldau_luj values
+                    self.f.write(f"Hubbard values to be used are as follows: {hubbard_params} \n")
 
-                # relax uses self.relax_struct(), whereas all other calculations used self.single_vasp_calc()
-                # the string "find" function is used to find any (mag or non-mag) relaxations
+                    if not add_settings_dict[calc]:
+                        add_settings_dict[calc] = {}
+                    add_settings_dict[calc]["ldau_luj"] = hubbard_params
+            else:
+                mag_moments = None
 
-                # used to determine whether to write a safe file or not
-                if calc.find("scf") != 1:
-                    wsf = True
-                else:
-                    wsf = False
+            # relax uses self.relax_struct(), whereas all other calculations used self.single_vasp_calc()
+            # the string "find" function is used to find any (mag or non-mag) relaxations
 
-                if calc.find("relax") != -1:
-                    current_struct, energy = self.relax_struct(path_name=path, add_settings=add_settings_dict[i],
-                                                               write_safe_files=True,
-                                                               mags=mag_moments)
-                else:
-                    # run calculation
-                    current_struct, energy = self.single_vasp_calc(calculation_type=calc,
-                                                                   add_settings=add_settings_dict[i],
-                                                                   path_name=path,
-                                                                   use_safe_file=True,
-                                                                   write_safe_files=wsf,
-                                                                   mags=mag_moments,
-                                                                   nkpts=nkpts)
+            # used to determine whether to write a safe file or not
+            if calc.find("scf") != 1:
+                wsf = True
+            else:
+                wsf = False
 
-                wo.write("Relaxation successfully converged in single ionic step!")
-            wo.write(f"Calculations on {calc_seq} \n")
+            if calc.find("relax") != -1:
+                current_struct, energy = self.relax_struct(path_name=path, add_settings=add_settings_dict[calc],
+                                                           write_safe_files=True,
+                                                           mags=mag_moments)
+            else:
+                # run calculation
+                current_struct, energy = self.single_vasp_calc(calculation_type=calc,
+                                                               add_settings=add_settings_dict[calc],
+                                                               path_name=path,
+                                                               use_safe_file=True,
+                                                               write_safe_files=wsf,
+                                                               mags=mag_moments,
+                                                               nkpts=nkpts)
+
+            self.f.write("Relaxation successfully converged in single ionic step!")
+            self.f.write(f"Calculations on {calc_seq} \n")
 
     def run_vasp(self, vasp_settings, restart=False):
         """
@@ -519,7 +520,7 @@ class VaspCalculations(object):
         """
 
         if species is None:
-            species = {"Fe": "d", "O": ""}
+            species = {"Fe": "d", "Fe": "", "O": ""}
         if setup_param is None:
             setup_param = {1: 'Fe'}
 
@@ -527,12 +528,28 @@ class VaspCalculations(object):
         hubb_dir = {}
 
         # loop to add all hubbards to hubb_dir
+        # TODO: need to adjust this to only put U = 2 for copied species
+
         for atom in species:
+
+            # chooses which orbitals to put the hubbard on
+            if species[atom] == "s":
+                orbital = 0
+            if species[atom] == "p":
+                orbital = 1
             if species[atom] == "d":
-                hubb_dir.update({atom: {'L': 2, 'U': 0, 'J': 0}})
-                active_species = atom
+                orbital = 2
+            if species[atom] == "f":
+                orbital = 3
             else:
-                hubb_dir.update({atom: {'L': -1, 'U': 0, 'J': 0}})
+                orbital = -1
+
+            # select species under scrutiny
+            if orbital != -1:
+                active_species = atom
+
+            # update hubbard directory
+            hubb_dir.update({atom: {'L': orbital, 'U': 0, 'J': 0}})
 
         # alpha_range defines array of alpha values to be considered
         alpha_range = np.arange(-0.15, 0.15, 0.05)
@@ -597,7 +614,7 @@ class VaspCalculations(object):
                     chi_settings.update({"icharg": 0})
 
                 self.single_vasp_calc("scf" + mag, add_settings=chi_settings, path_name="./",
-                                          use_safe_file=True)
+                                      use_safe_file=True)
 
     # TODO: Self-consistent hubbard set-up
     # TODO: Calculation Manager
