@@ -203,7 +203,7 @@ class VaspCalculations(object):
 
         # TODO: Clean and finish this
 
-    def calc_manager(self, calc_seq=None, add_settings_dict=dict, mags=None, hubbard_params=None, nkpts=200,
+    def calc_manager(self, calc_seq=None, add_settings_dict=None, mags=None, hubbard_params=None, nkpts=200,
                      outfile="vasp_seq.out"):
 
         if add_settings_dict is None:
@@ -289,7 +289,7 @@ class VaspCalculations(object):
 
             if calc.find("relax") != -1:
                 current_struct, energy = self.relax_struct(path_name=path, add_settings=add_settings_dict[calc],
-                                                           write_safe_files=True,
+                                                           write_safe_files=wsf,
                                                            mags=mag_moments)
             else:
                 # run calculation
@@ -491,7 +491,7 @@ class VaspCalculations(object):
         print(path.kpts)
         return path.kpts
 
-    def self_consistent_hubbard(self, species=None, setup_param=None, mag=False):
+    def self_consistent_hubbard(self, relax=False, species=None, setup_param=None, mag=False):
         """
 
         This function follows the work of the SI from Curnan and Kitchin
@@ -575,46 +575,58 @@ class VaspCalculations(object):
         # This explicit setup keyword makes two different Fe species
         setup_settings = {"setups": setup_param}
 
-        # run steps 1 and 2
-        """self.calc_manager(calc_seq=["relax", "relax-mag", "scf-mag"],
-                          add_settings=setup_settings, mags=None, hubbard_params=hubb_dir, outfile="vasp_seq.out")"""
-
-        # extra settings for steps 3 and 4
+        # add hubbard settings
         chi_settings = {"ldautype": 3}
+        chi_settings.update(setup_settings)
 
-        # run steps 3 and 4 for each value of alpha
-        steps = [3, 4]
-        for step in steps:
+        # run steps 1 and 2
+        # need to make the relaxation optional and add in the chi settings
+        if relax:
+            calc_seq = ["relax", "scf"]
+        else:
+            calc_seq = ["scf"]
 
-            # make subdirectory for steps 3 and 4 respectively
-            path_name = f"./{step}"
-            if not os.path.exists(path_name):
-                os.mkdir(path_name)
-            os.chdir(path_name)
+        # run calculations
+        self.calc_manager(calc_seq=calc_seq, add_settings_dict=chi_settings,
+                          mags=None, hubbard_params=hubb_dir, outfile="vasp_seq.out")
 
-            # loop through all requested values of alpha
-            for alpha in alpha_range:
-                alpha_path = f"./{alpha}"
-                if not os.path.exists(alpha_path):
-                    os.mkdir(alpha_path)
-                os.chdir(alpha_path)
+        # loop through all requested values of alpha
+        for alpha in alpha_range:
+            alpha_path = f"./{alpha}"
+            if not os.path.exists(alpha_path):
+                os.mkdir(alpha_path)
+            os.chdir(alpha_path)
+
+            # run steps 3 and 4 for each value of alpha
+            steps = ["bare", "inter"]
+            for i, step in enumerate(steps):
+
+                # make subdirectory for steps 3 and 4 respectively
+                path_name = f"./{step}"
+                if not os.path.exists(path_name):
+                    os.mkdir(path_name)
+                os.chdir(path_name)
+
+                # copy CHGCAR and WAVECAR from scf step
 
                 # update alpha value in hubb_dir
                 hubb_dir[active_species].update({'U': alpha, 'J': alpha})
                 chi_settings.update(hubb_dir)
-                # TODO: need to update hubbard settings too
 
-                if mag:
+                if mag:  # magnetism hasn't worked for MnFe2O4 so far but non-magnetic seems to work quite well
                     mag = "-mag"
 
-                if step == 3:
+                if step == "bare":
                     chi_settings.update({"icharg": 11})
 
-                elif step == 4:
-                    chi_settings.update({"icharg": 0})
+                elif step == "inter":
+                    chi_settings.update({"icharg": 1})
 
                 self.single_vasp_calc("scf" + mag, add_settings=chi_settings, path_name="./",
                                       use_safe_file=True)
+
+                os.chdir("../")
+            os.chdir("../")
 
     # TODO: Self-consistent hubbard set-up
     # TODO: Calculation Manager
