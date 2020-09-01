@@ -586,8 +586,9 @@ class VaspCalculations(object):
         else:
             calc_seq = ["scf"]
 
+        add_settings = {x: chi_settings for x in calc_seq}
         # run calculations
-        self.calc_manager(calc_seq=calc_seq, add_settings_dict=chi_settings,
+        self.calc_manager(calc_seq=calc_seq, add_settings_dict={0: chi_settings, 1: chi_settings},
                           mags=None, hubbard_params=hubb_dir, outfile="vasp_seq.out")
 
         # loop through all requested values of alpha
