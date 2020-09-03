@@ -89,7 +89,7 @@ class VaspCalculations(object):
                       }
 
         self.parameters = {
-            # "scf": {"icharg": 2},
+            "scf": {"icharg": 1},
             # TODO: Check if these parameters are correct
 
             "bands": {"icharg": 11},
@@ -347,7 +347,7 @@ class VaspCalculations(object):
 
         return structure, energy, result
 
-    def relax_struct(self, add_settings=None, path_name="./relax",
+    def relax_struct(self, add_settings=None, path_name="./relax", read_safe_files=False,
                      write_safe_files=False, mags=False):
 
         # check if directory already exists and if not change to directory
@@ -356,7 +356,7 @@ class VaspCalculations(object):
         os.chdir(path_name)
 
         # if safe files already exists use them
-        if os.path.exists(self.safe_dir):
+        if read_safe_files:
             self.structure = read(self.safe_dir + "/POSCAR")
             shutil.copy2(self.safe_dir + "/POSCAR", "./")
             shutil.copy2(self.safe_dir + "/CHGCAR", "./")
@@ -589,7 +589,7 @@ class VaspCalculations(object):
 
         add_settings = {x: chi_settings for x in calc_seq}
         # run calculations
-        self.calc_manager(calc_seq=calc_seq, add_settings_dict={"relax": chi_settings.update({"icharg": 2, "istart": 0}),
+        self.calc_manager(calc_seq=calc_seq, add_settings_dict={"relax": chi_settings,
                                                                 "scf": chi_settings},
                           mags=None, hubbard_params=hubb_dir, outfile="vasp_seq.out")
 
