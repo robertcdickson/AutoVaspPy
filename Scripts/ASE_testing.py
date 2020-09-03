@@ -536,11 +536,11 @@ class VaspCalculations(object):
             # chooses which orbitals to put the hubbard on
             if species[atom] == "s":
                 orbital = 0
-            if species[atom] == "p":
+            elif species[atom] == "p":
                 orbital = 1
-            if species[atom] == "d":
+            elif species[atom] == "d":
                 orbital = 2
-            if species[atom] == "f":
+            elif species[atom] == "f":
                 orbital = 3
             else:
                 orbital = -1
@@ -551,6 +551,9 @@ class VaspCalculations(object):
 
             # update hubbard directory
             hubb_dir.update({atom: {'L': orbital, 'U': 0, 'J': 0}})
+
+        if not active_species:
+            raise ValueError("No active species specified!")
 
         # alpha_range defines array of alpha values to be considered
         alpha_range = np.arange(-0.15, 0.15, 0.05)
@@ -576,7 +579,7 @@ class VaspCalculations(object):
 
         # loop through all requested values of alpha
         for alpha in alpha_range:
-            alpha_path = f"./{alpha}"
+            alpha_path = f"./alpha={alpha}"
             if not os.path.exists(alpha_path):
                 os.mkdir(alpha_path)
             os.chdir(alpha_path)
