@@ -555,29 +555,11 @@ class VaspCalculations(object):
         # alpha_range defines array of alpha values to be considered
         alpha_range = np.arange(-0.15, 0.15, 0.05)
 
-        """# alter POSCAR so that the hubbard species is separated into two species
-        # open POSCAR and read in lines to list
-        with open("./POSCAR", "r") as rf:
-            lines = rf.readlines()
-
-
-        # for all line sin list check if the active species is in that line and replace with 2 active species
-        for i, line in enumerate(lines):
-            if line.find(active_species) != -1:
-                lines[i] = line.replace(f"{active_species}", f"{active_species} {active_species}")
-
-        # rewrite whole file
-        with open("./POSCAR", "w") as wf:
-            wf.writelines(lines)
-            
-            NB: This commented-out section is now obsolete upon revelation that the set-up keyword splits the POSCAR
-            automatically """
-
         # This explicit setup keyword makes two different Fe species
         setup_settings = {"setups": setup_param}
 
         # add hubbard settings
-        chi_settings = {"ldautype": 3}
+        chi_settings = {"ldautype": 3, "icharg": 2, "istart": 0}
         chi_settings.update(setup_settings)
 
         # run steps 1 and 2
@@ -589,8 +571,7 @@ class VaspCalculations(object):
 
         add_settings = {x: chi_settings for x in calc_seq}
         # run calculations
-        self.calc_manager(calc_seq=calc_seq, add_settings_dict={"relax": chi_settings,
-                                                                "scf": chi_settings},
+        self.calc_manager(calc_seq=calc_seq, add_settings_dict=add_settings,
                           mags=None, hubbard_params=hubb_dir, outfile="vasp_seq.out")
 
         # loop through all requested values of alpha
