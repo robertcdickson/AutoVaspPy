@@ -222,7 +222,8 @@ class VaspCalculations(object):
         # all output of individual calculations is written to the one file (which note: is always open)
         self.f.write("-" * 30 + "\n")
         self.f.write(f"Calculation sequence consists of: {calc_seq} \n")
-        self.f.write(f"Additional settings: {add_settings_dict} \n")
+        if add_settings_dict:
+            self.f.write(f"Additional settings: {add_settings_dict} \n")
         self.f.write("-" * 30 + "\n")
 
         # default calculation sequence is relaxation and scf
@@ -588,7 +589,8 @@ class VaspCalculations(object):
 
         add_settings = {x: chi_settings for x in calc_seq}
         # run calculations
-        self.calc_manager(calc_seq=calc_seq, add_settings_dict={0: chi_settings, 1: chi_settings},
+        self.calc_manager(calc_seq=calc_seq, add_settings_dict={"relax": chi_settings.update({"icharg": 2, "istart": 0}),
+                                                                "scf": chi_settings},
                           mags=None, hubbard_params=hubb_dir, outfile="vasp_seq.out")
 
         # loop through all requested values of alpha
