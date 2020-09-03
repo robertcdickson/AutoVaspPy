@@ -492,7 +492,7 @@ class VaspCalculations(object):
         print(path.kpts)
         return path.kpts
 
-    def self_consistent_hubbard(self, relax=False, species=None, setup_param=None, mag=False):
+    def self_consistent_hubbard(self, relax=False, species=None, setup_param=None, mag=False, ignore_scf=False):
         """
 
         This function follows the work of the SI from Curnan and Kitchin
@@ -574,8 +574,9 @@ class VaspCalculations(object):
 
         add_settings = {x: chi_settings for x in calc_seq}
         # run calculations
-        self.calc_manager(calc_seq=calc_seq, add_settings_dict=add_settings,
-                          mags=None, hubbard_params=hubb_dir, outfile="vasp_seq.out")
+        if not ignore_scf:
+            self.calc_manager(calc_seq=calc_seq, add_settings_dict=add_settings,
+                              mags=None, hubbard_params=hubb_dir, outfile="vasp_seq.out")
 
         # loop through all requested values of alpha
         for alpha in alpha_range:
