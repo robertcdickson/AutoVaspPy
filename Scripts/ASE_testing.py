@@ -260,6 +260,7 @@ class VaspCalculations(object):
 
             # check if individual calculation is magnetic and if hubbard parameters are specified
             # magnetic check
+            # TODO: need to add iterative mag moments
             if calc.find("mag") != -1:
                 self.f.write("Calculation is magnetic \n")
                 if not mags:
