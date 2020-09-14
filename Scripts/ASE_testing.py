@@ -5,6 +5,8 @@ import os
 import shutil
 import numpy as np
 
+# TODO: Run directly from here to cluster and oxenhope2
+
 # --------------------------------------------------------#
 #  This module aims to be able to automate calculations  #
 #  for my PhD project                                    #
