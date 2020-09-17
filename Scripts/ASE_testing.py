@@ -73,6 +73,9 @@ class VaspCalculations(object):
         :param output_file:
         :param hubbard_parameters:
         """
+        os.environ["VASP_PP_PATH"] = "/home/robert/Pseudopotentials/"
+        os.environ["VASP_SCRIPT"] = "./run_vasp.py"
+        os.environ["PATH"] = os.environ["PATH"] + ":/home/robert/vasp.5.4.4.pl2/bin"
 
         self.general_calculation = {"reciprocal": True,
                                     "xc": "PBE",
@@ -119,7 +122,7 @@ class VaspCalculations(object):
         self.last_dir = self.safe_dir
 
         self.write_file = write_file
-        self.f = open(self.write_file, "a+")
+        # self.f = open(self.write_file, "a+") ## this has memotry problems
 
     def parameter_testing(self, test, values):
         # ------------------------------------------------------------------ #
@@ -619,17 +622,10 @@ class VaspCalculations(object):
                 os.chdir("../")
             os.chdir("../")
 
-    # TODO: Self-consistent hubbard set-up
-    # TODO: Calculation Manager
-    # TODO: single calculations for relaxation, scf, bands, eps,
-    # TODO: single calculations for HSE06, SCAN, GGA+U,
-
-# MnFe2O4_structure = read("./Cifs/MnFe2O4-Normal.cif")
-# MnFe2O4_structure = read("./relax/POSCAR")
-# MnFe2O4_calculation = VaspCalculations(MnFe2O4_structure)
-
-# MnFe2O4_calculation.get_band_path(nkpts=200)
-# k testing
-# k_test = MnFe2O4_tests.parameter_testing("k-points", [1, 2, 3])
-# ecut testing
-# ecut_test = MnFe2O4_tests.parameter_testing("ecut", [400, 450, 500, 550, 600, 650, 700, 750, 800])
+    # TODO: Self-consistent hubbard set-up -- Needs Finished
+    # TODO: single calculations for relaxation, scf, bands, eps -- works for relaxation and scf
+    # TODO: single calculations for HSE06, SCAN, GGA+U, -- can be done now
+    # TODO: band plot
+    # TODO: DOS plot
+    # TODO: EPS plot
+    # TODO: To oxenhope/ingrow/barkla calculation
