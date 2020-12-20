@@ -1,4 +1,4 @@
-from ASE_testing import VaspCalculations
+from autochempy import VaspCalculations
 from ase.io import read
 
 MnFeOCl_structure = read("../Cifs/Mn7FeCl3O10.cif")

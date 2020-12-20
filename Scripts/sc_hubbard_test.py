@@ -1,4 +1,4 @@
-from ASE_testing import VaspCalculations
+from autochempy import VaspCalculations
 from ase.io import read
 
 MnFe2O4_structure = read("../Cifs/MnFe2O4-Normal.cif")
