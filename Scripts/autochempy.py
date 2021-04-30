@@ -1,6 +1,7 @@
 from ase.calculators.vasp import Vasp
 from ase.io import read
 import os
+from shutil import rmtree
 import shutil
 import numpy as np
 from ase.dft.kpoints import bandpath
@@ -11,9 +12,7 @@ import re
 import environs
 import json
 from pymatgen.io.vasp.sets import MPRelaxSet
-from pymatgen.analysis.phase_diagram import PhaseDiagram
 
-# TODO: Run directly from here to cluster and oxenhope2
 
 # --------------------------------------------------------#
 #  This module aims to be able to automate calculations  #
@@ -27,13 +26,12 @@ class VaspCalculations(object):
 
     """
 
-    def __init__(self, structure, tests=None, write_file="output.out"):
+    def __init__(self, structure, write_file="output.out"):
         """
 
         Args:
             structure (ase atoms object): structure object that defines system
             tests:  (list): list of convergence tests to be performed
-            output_file:
             write_file:
         """
         self.general_calculation = {"reciprocal": True,
@@ -62,8 +60,7 @@ class VaspCalculations(object):
             "bands": {"icharg": 11,
                       "istart": 0},
 
-            "eps": {"algo": "all",
-                    "loptics": True,
+            "eps": {"loptics": True,
                     "cshift": 0.1,
                     "nedos": 2000},
 
@@ -77,11 +74,23 @@ class VaspCalculations(object):
                               "encut": 50,
                               "nelmin": 0,
                               "nelm": 1,
-                              "algo": "VeryFast"}
+                              "algo": "veryfast"}
         }
 
+        self.tests = {
+
+                        # explict 3x3x3 k-points
+                        "k-points": "kpts",
+                        "kpts": "kpts",
+
+                        # minimum k-spacing
+                        "kspacing": "kspacing",
+
+                        # cut off energy
+                        "ecut": "encut",
+                        "encut": "encut"}
+
         self.structure = structure
-        self.tests = tests
 
         self.owd = os.getcwd()
         self.safe_dir = self.owd + "/safe"
@@ -90,32 +99,41 @@ class VaspCalculations(object):
         self.write_file = write_file
         self.f = open(self.write_file, "w+")
 
-    def parameter_testing(self, test, values, add_settings, mags, hubbards):
-        # ------------------------------------------------------------------ #
-        #  This function allows for testing of many different values for a   #
-        #                          given test                                #
-        # ------------------------------------------------------------------ #
+    def parameter_testing(self, test, values, add_settings, mags, hubbards, plot=False):
+        """
+        This function takes in a list of parameter convergence tests to run for a given system
+
+        Args:
+            test:
+            values:
+            add_settings:
+            mags:
+            hubbards:
+
+        Returns:
+
+        """
 
         # TODO: Make option to plot and save figure of convergence test
         # TODO: At the moment, output is only written at end of all calculations as with open statement ends
         #   This needs to be amended so output is written as each calculation finishes
+        owd = os.getcwd()
 
-        if not os.path.exists("./tests"):
-            os.mkdir("./tests")
-        os.chdir("./tests")
+        if not os.path.exists(f"{owd}/tests"):
+            os.mkdir(f"{owd}/tests")
 
         self.f.write("-" * 80 + "\n")
         self.f.write("{} testing with a list of values of {}\n".format(test, values))
 
         # define path and check if directory exists
-        path_name = "./{}".format(test)
+        path_name = f"{owd}/tests/{test}"
 
         if not os.path.exists(path_name):
             os.mkdir(path_name)
-        os.chdir(path_name)
+
 
         self.f.write("Testing calculations running from the directory: {} \n".format(path_name))
-        self.f.write("{},Energy \n".format(test))
+        self.f.write("{}, Energy \n".format(test))
 
         # list for storage of tested output
         energies = []
@@ -124,7 +142,8 @@ class VaspCalculations(object):
         vasp_keywords = self.general_calculation.copy()
 
         for test_value in values:
-            test_path = "./{}".format(test_value)
+            test_path = f"{path_name}/{test_value}"
+            print(test_path)
 
             if not os.path.exists(test_path):
                 os.mkdir(test_path)
@@ -134,6 +153,8 @@ class VaspCalculations(object):
             if test == "k-points":
                 test_variable = "kpts"
                 test_value = [test_value, test_value, test_value]
+            elif test == "kspacing":
+                test_variable = "kspacing"
             elif test == "ecut" or "encut":
                 test_variable = "encut"
             else:
@@ -149,18 +170,25 @@ class VaspCalculations(object):
             add_settings[test_variable] = test_value
 
             # run calculation
+            _, energy = self.single_vasp_calc(calculation_type="scf-mag", add_settings=add_settings, magnetic_moments=mags)
 
-            self.single_vasp_calc(calculation_type="scf-mag", add_settings=add_settings, magnetic_moments=mags)
-            """except (TypeError, ValueError):
-                print("A VASP error has occurred in test: {} | {}. Please check again".format(test, test_value))
-                energy = 0"""
-            # self.f.write("{},{}\n".format(test_value, energy))
 
-            #energies.append(energy)
-            os.chdir("../")
+            energies.append(energy)
+            os.chdir(owd)
 
         self.f.write("Testing Finished!")
         self.f.write("-" * 80 + "\n")
+
+        if plot:
+            import matplotlib
+            matplotlib.use('Agg')
+            import matplotlib.pyplot as plt
+            x = np.array(values)
+            y = np.array(energies)
+            plt.plot(x, y)
+            plt.xlabel(f"{test}", fontsize=16)
+            plt.ylabel("Energy / eV", fontsize=16)
+            plt.savefig(f"./tests/{test}/{test}.png", dpi=250)
 
         return energies
 
@@ -180,44 +208,67 @@ class VaspCalculations(object):
 
         # TODO: Clean and finish this
 
-    def calc_manager(self, calc_seq=None, add_settings_dict=None, magnetic_moments=None, hubbard_params=None,
-                     nkpts=200, test_run=False):
+    def calculation_manager(self, calculation_sequence=None, add_settings_dict=None, magnetic_moments=None,
+                            hubbard_params=None, nkpts=200, test_run=False):
 
         """
-        For HSE06 bands need to do an scf, get the IBZKPTS and WAVECAR files and use these with zero weight band k-path
-        for the HSE06 band structure
+        A calculation manager that can run a sequence of calculations for a given system.
+        Args:
+            calculation_sequence (list):
+                A list of calculations to run. Currently implemented are relax, scf, bands, eps which can be suffixed with
+                "-mag" to allow for magnetic calculations
+
+            add_settings_dict (dict):
+                A dictionary of dictionaries for extra vasp setting for each calculation stage
+
+            magnetic_moments (list):
+                The magnetic structure of the system
+
+            hubbard_params (dict):
+                Hubbard parameters in ase dictionary format
+
+            nkpts (int):
+                Number of k-points for band structure calculation
+
+            test_run (bool):
+                If True, a test run with minimal settings is run. Any results from a test run is unlinkely to be meaningful
+                and should only be used to check for any runtime errors that may occur.
+
+        Returns:
+            current_structure (ase atoms):
+
+            energy (float):
+                Final energy of the system
         """
 
         # default calculation sequence is relaxation and scf
-        if calc_seq is None:
-            raise ValueError("No calculation sequence (calc_seq) specified!")
+        if calculation_sequence is None:
+            raise ValueError("No calculation sequence (calculation_sequence) specified!")
 
         if add_settings_dict is None:
             add_settings_dict = {}
 
         # deepcopy needed to reset the add_settings_dict after every calculation sequence
-        # TODO: there will be a non-destructive way to do this but this is a quick and easy fix
         copy_add_settings_dict = copy.deepcopy(add_settings_dict)
 
         # check for test run
         if test_run:
             self.f.write("Test run is selected. This run will use minimal settings to test that transitions"
                          "between calculations run smoothly. \n")
-            self.f.write("!!IMPORTANT NOTE!!: Results from test runs are meaningless. Please DO NOT use these results!")
+            self.f.write("IMPORTANT NOTE!!: Results from test runs are meaningless. Please DO NOT use these results!\n")
 
         # all output of individual calculations is written to the one file (which note: is always open)
-
-        self.f.write("-" * 80 + "\n")
-        self.f.write(28 * " " + "NEW CALCULATION SEQUENCE" + "\n")
+        self.f.write("-" * 20 + "\n")
+        self.f.write(28 * " " + "" + "\n")
         self.f.write("\n")
-        self.f.write(f"Calculation sequence consists of: {calc_seq} \n")
+        self.f.write(f"Calculation sequence consists of: {calculation_sequence} \n")
 
         if copy_add_settings_dict:
             self.f.write(f"Additional settings: {copy_add_settings_dict} \n")
-        self.f.write("-" * 80 + "\n")
+        self.f.write("-" * 20 + "\n")
 
         # loop through all calculations
-        for i, calc in enumerate(calc_seq):
+        for i, calc in enumerate(calculation_sequence):
             self.f.write(f"Beginning calculation: {calc} as calculation {i + 1} in sequence. \n")
 
             # if no additional setting specified for a given calculation, add empty dict
@@ -239,7 +290,7 @@ class VaspCalculations(object):
 
                 # hubbard check
                 if not hubbard_params:
-                    self.f.write("No hubbard parameters requested. Are you sure this calculation will converge?\n")
+                    self.f.write("No hubbard parameters requested. Are you sure this calculation will converge? \n")
                 else:
                     # check if add_settings already exists and append ldau_luj values
                     self.f.write(f"Hubbard values to be used are as follows: {hubbard_params} \n")
@@ -275,12 +326,6 @@ class VaspCalculations(object):
                                                            nkpts=nkpts, testing=test_run, max_cycles=10)
 
         return current_struct, energy
-
-    @staticmethod
-    def relax_struct(self, add_settings=None, path_name="./relax", read_safe_files=False,
-                     write_safe_files=False, magnetic_moments=False):
-
-        print("This method has now been discontinued. Please use the `single_vasp_valc` method to perform relaxations")
 
     def single_vasp_calc(self, calculation_type="scf", add_settings=None, path_name="./", nkpts=200,
                          read_safe_files=False, write_safe_files=False, magnetic_moments=None, testing=False, max_cycles=10):
@@ -387,7 +432,7 @@ class VaspCalculations(object):
 
             # run energy calculation
             structure, energy, result = self.run_vasp(vasp_settings)
-
+            print(result)
         # save files to a safe directory for future use
         if write_safe_files:
             safe_dir = self.safe_dir
@@ -438,10 +483,10 @@ class VaspCalculations(object):
         structure.set_calculator(Vasp(**vasp_settings, restart=restart))
 
         # Run calculation, and consider any exception to be a VASP failure
+        # NOTE: you can get a Value error here from a function (ironically) calculating stress due to large stress
+        # Make sure your cut off energy is large enough
         try:
             energy = structure.get_potential_energy()
-        except ValueError:
-            result = "vasp failure"
         except UnboundLocalError:
             print("UnboundLocalError found so trying to turn off symmetry")
             try:
@@ -457,6 +502,7 @@ class VaspCalculations(object):
                 energy = structure.get_potential_energy()
             except:
                 result = "vasp failure"
+            print("INDEX ERROR")
             result = "vasp failure"
 
         return structure, energy, result
@@ -528,7 +574,7 @@ class VaspCalculations(object):
 
         NOTE: spin cannot be ignored in these calculations
 
-        calc_seq = ["relax-mag",
+        calculation_sequence = ["relax-mag",
          "scf-mag; add_settings={"ediff": "1E-06"},
          "scf-mag-bare"; add_settings={"icharg": 11, "ldautype": 3},
          "scf-mag-"; add_settings={"icharg": 11, "ldautype": 3}]
@@ -588,10 +634,11 @@ class VaspCalculations(object):
             calc_seq = ["scf"]
 
         add_settings = {x: chi_settings for x in calc_seq}
+        
         # run calculations
         if not ignore_scf:
-            self.calc_manager(calc_seq=calc_seq, add_settings_dict=add_settings,
-                              magnetic_moments=None, hubbard_params=hubb_dir, outfile="vasp_seq.out")
+            self.calculation_manager(calculation_sequence=calc_seq, add_settings_dict=add_settings,
+                                     magnetic_moments=None, hubbard_params=hubb_dir, outfile="vasp_seq.out")
 
         # loop through all requested values of alpha
         for alpha in alpha_range:
@@ -754,7 +801,6 @@ def get_ch(key="0G4rqjSNG4M51Am0JNj", must_contain=[], species=None, filepath=".
 
                 os.chdir(owd)
 
-
 def ch_sorter(filepath):
     os.chdir(filepath)
     subdirectories = [f.path.strip("./") for f in os.scandir("./") if f.is_dir()]
@@ -805,13 +851,14 @@ def convex_hull_relaxations(species, root_directory="./", hubbards=None, additio
     
     # change to location
     os.chdir(root_directory)
+
     # for each chemical system in composition space
     for system in species.keys():
         system_directory = os.getcwd()
 
-        print("-" * 50)
-        print(f"Running relaxation calculation for {system} in {system_directory}")
-        print(f"Changing directory to {system_directory}")
+        # print("-" * 50)
+        # print(f"Running relaxation calculation for {system} in {system_directory}")
+        # print(f"Changing directory to {system_directory}")
         
         os.chdir(f"./{system}")
 
@@ -847,10 +894,10 @@ def convex_hull_relaxations(species, root_directory="./", hubbards=None, additio
                 print(f"For {subdirectory} in system {system} a list is given for magnetic moments and therefore\n"
                       f"it is assumed that only one magnetic structure is to be tested")
                 if not testing:
-                    relax = calculator.calc_manager(calc_seq=["relax-mag"],
-                                                    add_settings_dict={"relax-mag": additional_settings},
-                                                    magnetic_moments=species[system],
-                                                    hubbard_params=hubbards)
+                    relax = calculator.calculation_manager(calculation_sequence=["relax-mag"],
+                                                           add_settings_dict={"relax-mag": additional_settings},
+                                                           magnetic_moments=species[system],
+                                                           hubbard_params=hubbards)
 
             # elif multiple magnetic configurations specified
             elif type(species[system]) == dict:
@@ -865,10 +912,10 @@ def convex_hull_relaxations(species, root_directory="./", hubbards=None, additio
                     os.chdir(f"./{key}")
 
                     if not testing:
-                        relax = calculator.calc_manager(calc_seq=["relax-mag"],
-                                                        add_settings_dict={"relax-mag": additional_settings},
-                                                        magnetic_moments=magnetic_configuration,
-                                                        hubbard_params=hubbards)
+                        relax = calculator.calculation_manager(calculation_sequence=["relax-mag"],
+                                                               add_settings_dict={"relax-mag": additional_settings},
+                                                               magnetic_moments=magnetic_configuration,
+                                                               hubbard_params=hubbards)
                     os.chdir("../")
             
             # elif not magnetic
@@ -876,8 +923,8 @@ def convex_hull_relaxations(species, root_directory="./", hubbards=None, additio
                 print(f"For {subdirectory} in system {system} no magnetic moments are specified and therefore\n"
                       f"it is assumed that the calculation is non magnetic")
                 if not testing:
-                    relax = calculator.calc_manager(calc_seq=["relax"],
-                                                    add_settings_dict={"relax": adds})
+                    relax = calculator.calculation_manager(calculation_sequence=["relax"],
+                                                           add_settings_dict={"relax": adds})
             else:
                 raise TypeError("Wrong type for magnetic moments specified!")
             
@@ -903,3 +950,99 @@ def get_magnetic_moments_from_mp(root="./", write_file="./magnetic_moments"):
         wf.write(json.dumps(mags))
     
     return mags
+
+def plot_convex_hull(read_files=None, load_files=None, save_data=False,
+                     convex_hull_loc="./convex_hull.txt", corrected=True, other_entries=[],
+                     new_entries_file=None):
+    """
+
+    Args:
+        read_files (list): a list of directories to search for xml files
+        load_data (bool): load data from load files
+        new_data (bool): look for new data in directories
+        load_files:
+        save_data:
+        convex_hull_loc:
+
+    Returns:
+
+    """
+    from pymatgen.apps.borg.hive import VaspToComputedEntryDrone
+    from pymatgen.apps.borg.queen import BorgQueen
+    from pymatgen.analysis.phase_diagram import PhaseDiagram, PDPlotter
+    from pymatgen.entries.compatibility import MaterialsProjectCompatibility
+    import os
+
+    loaded_entries = []
+    new_entries = []
+    additional_entries = []
+
+    if load_files is not None:
+        drone = VaspToComputedEntryDrone()
+        queen = BorgQueen(drone)
+
+        # load data to queen
+        for file in load_files:
+            try:
+                queen.load_data(file)
+            except FileNotFoundError:
+                continue
+
+            # get data to entries
+            loaded_entries += queen.get_data()
+
+    if read_files is not None:
+        drone = VaspToComputedEntryDrone()
+
+        # load data to queen
+        for directory in read_files:
+            queen = BorgQueen(drone, directory)
+            if save_data:
+                queen.save_data(directory + "/convex_hull_data")
+            new_entries += queen.get_data()
+
+    if other_entries:
+        for entry in other_entries:
+            additional_entries.append(entry)
+
+    # compound all entries
+    all_entries = loaded_entries + new_entries + additional_entries
+    final_entries = []
+
+    # Generate and plot phase diagram
+    for i in range(len(all_entries)):
+        if all_entries[i] is not None:
+            final_entries.append(all_entries[i])
+
+    pd = PhaseDiagram(final_entries)
+
+    if corrected:
+        # corrected energies
+        mp_compat = MaterialsProjectCompatibility(check_potcar_hash=False)
+        mp_compat.corrections[3].u_settings["O"]["Fe"] = 5.0
+        mp_compat.corrections[3].u_settings["O"]["Mn"] = 4.3
+        mp_compat.corrections[3].u_settings["Cl"] = mp_compat.corrections[3].u_settings["O"]
+        mp_compat.corrections[3].u_settings["Cl"]["Mn"] = 4.3
+        
+        for i, entry in enumerate(pd.all_entries):
+            pd.all_entries[i].correction = sum([j.value for j in mp_compat.get_adjustments(entry)])
+
+        pd = PhaseDiagram(pd.all_entries)
+
+    # make decompositions dictionary to show decomposition products
+    energies = {}
+    decompositions = {}
+    if convex_hull_loc:
+        with open(convex_hull_loc, "w") as wf:
+            for i, entry in enumerate(pd.all_entries):
+                wf.write(f"{entry.composition.alphabetical_formula}-{i}, {pd.get_e_above_hull(entry) * 1000:.2f} \n")
+                energies[entry.composition.alphabetical_formula + f"-{i}"] = pd.get_e_above_hull(entry) * 1000
+                decompositions[entry.composition.alphabetical_formula + f"-{i}"] = pd.get_decomposition(entry.composition)
+
+    if new_entries_file:
+        with open(new_entries_file, "w") as wf2:
+            for i, entry in enumerate(pd.all_entries):
+                    if entry in new_entries:
+                        wf2.write(f"{entry.composition.alphabetical_formula}, "
+                                  f"{pd.get_e_above_hull(entry) * 1000:.2f} \n")
+    return pd, decompositions
