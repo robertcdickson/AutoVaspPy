@@ -1,17 +1,18 @@
-from ase.calculators.vasp import Vasp
-from ase.io import read
 import os
-from shutil import rmtree
-import shutil
-import numpy as np
-from ase.dft.kpoints import bandpath
-import copy
-from pymatgen.ext.matproj import MPRester
-from pymatgen.analysis.phase_diagram import PhaseDiagram
 import re
-import environs
+import copy
 import json
+import shutil
+import environs
+import numpy as np
+
+from shutil import rmtree
+from ase.io import read
+from ase.dft.kpoints import bandpath
+from ase.calculators.vasp import Vasp
+from pymatgen.ext.matproj import MPRester
 from pymatgen.io.vasp.sets import MPRelaxSet
+from pymatgen.analysis.phase_diagram import PhaseDiagram
 
 
 # --------------------------------------------------------#
@@ -52,7 +53,7 @@ class VaspCalculations(object):
         self.parameters = {
             "relax": {"nsw": 12,  # number of ionic steps
                       "isif": 3,  # allows for atomic positions, cell shape and cell volume as degrees of freedom
-                      "ibrion": 1},
+                      "ibrion": 2},
 
             "scf": {"icharg": 1,
                     "istart": 0},
@@ -116,14 +117,15 @@ class VaspCalculations(object):
 
         # TODO: Make option to plot and save figure of convergence test
         # TODO: At the moment, output is only written at end of all calculations as with open statement ends
-        #   This needs to be amended so output is written as each calculation finishes
+
         owd = os.getcwd()
 
         if not os.path.exists(f"{owd}/tests"):
             os.mkdir(f"{owd}/tests")
 
-        self.f.write("-" * 80 + "\n")
-        self.f.write("{} testing with a list of values of {}\n".format(test, values))
+        self.f.write("-" * 20 + "\n")
+        self.f.write("{} testing with values of {}\n".format(test, values))
+        self.f.write("-" * 20 + "\n")
 
         # define path and check if directory exists
         path_name = f"{owd}/tests/{test}"
@@ -141,9 +143,10 @@ class VaspCalculations(object):
         # append the general VASP keywords for the test
         vasp_keywords = self.general_calculation.copy()
 
+        # iterate over all values
         for test_value in values:
+
             test_path = f"{path_name}/{test_value}"
-            print(test_path)
 
             if not os.path.exists(test_path):
                 os.mkdir(test_path)
@@ -160,8 +163,10 @@ class VaspCalculations(object):
             else:
                 raise ValueError('Error: test requested is not implemented. Please check test argument and try '
                                  'again.')
+
             if not add_settings:
                 add_settings = {}
+
             if hubbards:
                 add_settings.update(self.parameters["hubbard"])
                 add_settings["ldau_luj"] = hubbards
@@ -177,7 +182,7 @@ class VaspCalculations(object):
             os.chdir(owd)
 
         self.f.write("Testing Finished!")
-        self.f.write("-" * 80 + "\n")
+        self.f.write("-" * 20 + "\n")
 
         if plot:
             import matplotlib
@@ -186,9 +191,9 @@ class VaspCalculations(object):
             x = np.array(values)
             y = np.array(energies)
             plt.plot(x, y)
-            plt.xlabel(f"{test}", fontsize=16)
-            plt.ylabel("Energy / eV", fontsize=16)
-            plt.savefig(f"./tests/{test}/{test}.png", dpi=250)
+            plt.xlabel(f"{test}", fontsize=18)
+            plt.ylabel("Energy / eV", fontsize=18)
+            plt.savefig(f"./tests/{test}/{test}.png", dpi=300)
 
         return energies
 
@@ -504,6 +509,8 @@ class VaspCalculations(object):
                 result = "vasp failure"
             print("INDEX ERROR")
             result = "vasp failure"
+        except ValueError:
+            print("String-to-float error implies that energy has blown up. Please check settings!")
 
         return structure, energy, result
 

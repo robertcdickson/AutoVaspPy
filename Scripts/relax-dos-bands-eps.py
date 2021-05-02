@@ -1,4 +1,4 @@
-from autochempy import VaspCalculations
+from AutoVaspPy import VaspCalculations
 from ase.io import read
 import os
 
@@ -28,11 +28,11 @@ for i in range(1):
         os.mkdir(f"./test{i}")
     os.chdir(f"./test{i}")
     init_structure = read("../POSCAR")
-    calculations = VaspCalculations(init_structure).calc_manager(calc_seq=["relax-mag"],
-                                                             add_settings_dict=settings, nkpts=10,
-                                                             magnetic_moments=mags,
-                                                             hubbard_params=hub)
+    calculations = VaspCalculations(init_structure).calculation_manager(calculation_sequence=["relax-mag"],
+                                                                        add_settings_dict=settings, nkpts=10,
+                                                                        magnetic_moments=mags,
+                                                                        hubbard_params=hub)
     os.chdir("../")
 """calculations = VaspCalculations(init_structure).get_band_path()"""
 
-# MnFe2O4_calculation.calc_manager(calc_seq=["bands-mag"])
+# MnFe2O4_calculation.calc_manager(calculation_sequence=["bands-mag"])
