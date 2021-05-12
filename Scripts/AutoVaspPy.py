@@ -15,17 +15,8 @@ from pymatgen.io.vasp.sets import MPRelaxSet
 from pymatgen.analysis.phase_diagram import PhaseDiagram
 
 
-# --------------------------------------------------------#
-#  This module aims to be able to automate calculations  #
-#  for my PhD project                                    #
-# --------------------------------------------------------#
 
 class VaspCalculations(object):
-    """
-
-    VaspCalculations class provides and python interface to interact with vasp calculations
-
-    """
 
     def __init__(self, structure, write_file="output.out"):
         """
@@ -34,8 +25,12 @@ class VaspCalculations(object):
             structure (ase atoms object): structure object that defines system
             tests:  (list): list of convergence tests to be performed
             write_file:
+
+
+        NB: These general settings are set up for th authors calculations. Please adjust these to your own as you need.
+
         """
-        self.general_calculation = {"reciprocal": True,
+        self.general_calculation_settings = {"reciprocal": True,
                                     "ediff": 10E-5,
                                     "xc": "PBE",
                                     "setups": 'materialsproject',
@@ -48,7 +43,7 @@ class VaspCalculations(object):
                                     "lasph": True,
                                     "nelmin": 6,
                                     "nelm": 30,
-                                    }
+                                             }
 
         self.parameters = {
             "relax": {"nsw": 12,  # number of ionic steps
@@ -72,14 +67,13 @@ class VaspCalculations(object):
                         "lmaxmix": 4},
 
             "test_defaults": {"kpts": [2, 2, 2],
-                              "encut": 50,
+                              "encut": 200,
                               "nelmin": 0,
                               "nelm": 1,
                               "algo": "veryfast"}
         }
 
         self.tests = {
-
                         # explict 3x3x3 k-points
                         "k-points": "kpts",
                         "kpts": "kpts",
@@ -94,28 +88,58 @@ class VaspCalculations(object):
         self.structure = structure
 
         self.owd = os.getcwd()
+
+        # keeps files of interest in a safe directory
         self.safe_dir = self.owd + "/safe"
+
+        # records last directory used
         self.last_dir = self.safe_dir
 
         self.write_file = write_file
-        self.f = open(self.write_file, "w+")
 
-    def parameter_testing(self, test, values, add_settings, mags, hubbards, plot=False):
+        self.f = open(self.write_file, "w+")
+        self.write_intro()
+
+
+
+
+    def write_intro(self):
+        self.f.write(" " + "-" * 78 + " \n")
+        self.f.write("|" + " " * 78 + "|\n")
+        self.f.write("|    AutoVaspPy: A helpful* Python interface to pipeline VASP calculations.    |\n")
+        self.f.write("|" + " " * 78 + "|\n")
+        self.f.write("|" + " " * 78 + "|\n")
+        self.f.write("|" + " " * 78 + "|\n")
+        self.f.write("|" + " " * 78 + "|\n")
+        self.f.write("|                    *Helpfulness absolutely not guaranteed                    |\n")
+        self.f.write(" " + "-" * 78 + " \n")
+        self.f.write("\n\n\n\n\n")
+        self.f.flush()
+
+
+    def parameter_testing(self, test, values, additional_settings, magnetic_moments, hubbard_parameters, plot=False):
         """
-        This function takes in a list of parameter convergence tests to run for a given system
+        A function for convergence testing of different VASP parameters
+
 
         Args:
-            test:
-            values:
-            add_settings:
-            mags:
-            hubbards:
+            test: (str)
+                Name of test to be conducted. Currently supported are k-points, k-spacing and ecut
+            values: (list)
+                A list of values to test
+            additional_settings: (dict)
+                A dictionary of additional values to pass through the ase interface for each calculation
+            magnetic_moments: (list)
+                A list of magnetic moments associated with the structure
+            hubbard_parameters: (dict)
+                A dictrionary of hubbard parameters in ase form for each calculation
 
         Returns:
+            energies: (list)
+                A list of the final energies for each testing value
 
         """
 
-        # TODO: Make option to plot and save figure of convergence test
         # TODO: At the moment, output is only written at end of all calculations as with open statement ends
 
         owd = os.getcwd()
@@ -123,9 +147,9 @@ class VaspCalculations(object):
         if not os.path.exists(f"{owd}/tests"):
             os.mkdir(f"{owd}/tests")
 
-        self.f.write("-" * 20 + "\n")
-        self.f.write("{} testing with values of {}\n".format(test, values))
-        self.f.write("-" * 20 + "\n")
+        self.f.write("-" * 80 + "\n")
+        self.f.write("{} testing with values of {}".format(test, values).center(80) + "\n")
+        self.f.write("-" * 80 + "\n")
 
         # define path and check if directory exists
         path_name = f"{owd}/tests/{test}"
@@ -134,14 +158,17 @@ class VaspCalculations(object):
             os.mkdir(path_name)
 
 
-        self.f.write("Testing calculations running from the directory: {} \n".format(path_name))
-        self.f.write("{}, Energy \n".format(test))
+        self.f.write("Testing calculations running from the directory:".center(80) + "\n")
+        self.f.write(f"{path_name}".center(80) + "\n")
+        self.f.write("-" * 80 + "\n")
+
+        self.f.write("{} Energy".format(test).center(80) + "\n")
 
         # list for storage of tested output
         energies = []
 
         # append the general VASP keywords for the test
-        vasp_keywords = self.general_calculation.copy()
+        vasp_keywords = self.general_calculation_settings.copy()
 
         # iterate over all values
         for test_value in values:
@@ -164,32 +191,38 @@ class VaspCalculations(object):
                 raise ValueError('Error: test requested is not implemented. Please check test argument and try '
                                  'again.')
 
-            if not add_settings:
-                add_settings = {}
+            if not additional_settings:
+                additional_settings = {}
 
-            if hubbards:
-                add_settings.update(self.parameters["hubbard"])
-                add_settings["ldau_luj"] = hubbards
+
+            if hubbard_parameters:
+                additional_settings.update(self.parameters["hubbard"])
+                additional_settings["ldau_luj"] = hubbard_parameters
 
             # update keywords dictionary to have new test value
-            add_settings[test_variable] = test_value
+            additional_settings[test_variable] = test_value
 
             # run calculation
-            _, energy = self.single_vasp_calc(calculation_type="scf-mag", add_settings=add_settings, magnetic_moments=mags)
-
+            _, energy = self.single_vasp_calc(calculation_type="scf-mag", add_settings=additional_settings, magnetic_moments=magnetic_moments)
+            self.f.write(f"{test_value} {energy}".center(80) + "\n")
+            self.f.flush()
 
             energies.append(energy)
             os.chdir(owd)
 
-        self.f.write("Testing Finished!")
-        self.f.write("-" * 20 + "\n")
+        self.f.write("-" * 80 + "\n")
+        self.f.write("Testing Finished!".center(80) + "\n")
+        self.f.write("-" * 80 + "\n")
+        self.f.flush()
 
         if plot:
             import matplotlib
             matplotlib.use('Agg')
             import matplotlib.pyplot as plt
+
             x = np.array(values)
             y = np.array(energies)
+
             plt.plot(x, y)
             plt.xlabel(f"{test}", fontsize=18)
             plt.ylabel("Energy / eV", fontsize=18)
@@ -297,7 +330,7 @@ class VaspCalculations(object):
                 if not hubbard_params:
                     self.f.write("No hubbard parameters requested. Are you sure this calculation will converge? \n")
                 else:
-                    # check if add_settings already exists and append ldau_luj values
+                    # check if additional_settings already exists and append ldau_luj values
                     self.f.write(f"Hubbard values to be used are as follows: {hubbard_params} \n")
 
                     copy_add_settings_dict[calc].update(self.parameters["hubbard"])
@@ -365,7 +398,7 @@ class VaspCalculations(object):
         self.last_dir = path_name
 
         # copy vasp settings from standard set-up
-        vasp_settings = self.general_calculation.copy()
+        vasp_settings = self.general_calculation_settings.copy()
 
         # check for magnetism
         # can give an explicit list or a string in vasp format that is sorted by multiply_out_moments function
@@ -582,9 +615,9 @@ class VaspCalculations(object):
         NOTE: spin cannot be ignored in these calculations
 
         calculation_sequence = ["relax-mag",
-         "scf-mag; add_settings={"ediff": "1E-06"},
-         "scf-mag-bare"; add_settings={"icharg": 11, "ldautype": 3},
-         "scf-mag-"; add_settings={"icharg": 11, "ldautype": 3}]
+         "scf-mag; additional_settings={"ediff": "1E-06"},
+         "scf-mag-bare"; additional_settings={"icharg": 11, "ldautype": 3},
+         "scf-mag-"; additional_settings={"icharg": 11, "ldautype": 3}]
         :return:
         """
 
@@ -596,7 +629,7 @@ class VaspCalculations(object):
         # hubb_dir is going to store the ldau_luj values
         hubb_dir = {}
 
-        # loop to add all hubbards to hubb_dir
+        # loop to add all hubbard_parameters to hubb_dir
         # TODO: need to adjust this to only put U = 2 for copied species
 
         for atom in species:
