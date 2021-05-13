@@ -140,7 +140,6 @@ class VaspCalculations(object):
 
         """
 
-        # TODO: At the moment, output is only written at end of all calculations as with open statement ends
 
         owd = os.getcwd()
 
@@ -180,20 +179,16 @@ class VaspCalculations(object):
             os.chdir(test_path)
 
             # statements to find which type of test is being used
-            if test == "k-points":
+            if test == "k-points" or test == "kpts" or test == "nkpts":
                 test_variable = "kpts"
                 test_value = [test_value, test_value, test_value]
-            elif test == "kspacing":
-                test_variable = "kspacing"
-            elif test == "ecut" or "encut":
+            elif test == "ecut" or test =="encut":
                 test_variable = "encut"
             else:
-                raise ValueError('Error: test requested is not implemented. Please check test argument and try '
-                                 'again.')
+                test_variable = test
 
             if not additional_settings:
                 additional_settings = {}
-
 
             if hubbard_parameters:
                 additional_settings.update(self.parameters["hubbard"])
@@ -244,10 +239,9 @@ class VaspCalculations(object):
         shutil.copy2(ibz_file, "./KPOINTS")
         band_path = self.get_band_path()[0]
 
-        # TODO: Clean and finish this
 
-    def calculation_manager(self, calculation_sequence=None, add_settings_dict=None, magnetic_moments=None,
-                            hubbard_params=None, nkpts=200, test_run=False):
+    def calculation_manager(self, calculation_sequence=None, additional_settings=None, magnetic_moments=None,
+                            hubbard_parameters=None, nkpts=200, test_run=False):
 
         """
         A calculation manager that can run a sequence of calculations for a given system.
@@ -256,13 +250,13 @@ class VaspCalculations(object):
                 A list of calculations to run. Currently implemented are relax, scf, bands, eps which can be suffixed with
                 "-mag" to allow for magnetic calculations
 
-            add_settings_dict (dict):
+            additional_settings (dict):
                 A dictionary of dictionaries for extra vasp setting for each calculation stage
 
             magnetic_moments (list):
                 The magnetic structure of the system
 
-            hubbard_params (dict):
+            hubbard_parameters (dict):
                 Hubbard parameters in ase dictionary format
 
             nkpts (int):
@@ -283,11 +277,11 @@ class VaspCalculations(object):
         if calculation_sequence is None:
             raise ValueError("No calculation sequence (calculation_sequence) specified!")
 
-        if add_settings_dict is None:
-            add_settings_dict = {}
+        if additional_settings is None:
+            additional_settings = {}
 
-        # deepcopy needed to reset the add_settings_dict after every calculation sequence
-        copy_add_settings_dict = copy.deepcopy(add_settings_dict)
+        # deepcopy needed to reset the additional_settings after every calculation sequence
+        copy_add_settings_dict = copy.deepcopy(additional_settings)
 
         # check for test run
         if test_run:
@@ -327,14 +321,14 @@ class VaspCalculations(object):
                 mag_moments = magnetic_moments
 
                 # hubbard check
-                if not hubbard_params:
+                if not hubbard_parameters:
                     self.f.write("No hubbard parameters requested. Are you sure this calculation will converge? \n")
                 else:
                     # check if additional_settings already exists and append ldau_luj values
-                    self.f.write(f"Hubbard values to be used are as follows: {hubbard_params} \n")
+                    self.f.write(f"Hubbard values to be used are as follows: {hubbard_parameters} \n")
 
                     copy_add_settings_dict[calc].update(self.parameters["hubbard"])
-                    copy_add_settings_dict[calc]["ldau_luj"] = hubbard_params
+                    copy_add_settings_dict[calc]["ldau_luj"] = hubbard_parameters
 
             else:
                 mag_moments = None
@@ -677,8 +671,8 @@ class VaspCalculations(object):
         
         # run calculations
         if not ignore_scf:
-            self.calculation_manager(calculation_sequence=calc_seq, add_settings_dict=add_settings,
-                                     magnetic_moments=None, hubbard_params=hubb_dir, outfile="vasp_seq.out")
+            self.calculation_manager(calculation_sequence=calc_seq, additional_settings=add_settings,
+                                     magnetic_moments=None, hubbard_parameters=hubb_dir, outfile="vasp_seq.out")
 
         # loop through all requested values of alpha
         for alpha in alpha_range:
@@ -935,9 +929,9 @@ def convex_hull_relaxations(species, root_directory="./", hubbards=None, additio
                       f"it is assumed that only one magnetic structure is to be tested")
                 if not testing:
                     relax = calculator.calculation_manager(calculation_sequence=["relax-mag"],
-                                                           add_settings_dict={"relax-mag": additional_settings},
+                                                           additional_settings={"relax-mag": additional_settings},
                                                            magnetic_moments=species[system],
-                                                           hubbard_params=hubbards)
+                                                           hubbard_parameters=hubbards)
 
             # elif multiple magnetic configurations specified
             elif type(species[system]) == dict:
@@ -953,9 +947,9 @@ def convex_hull_relaxations(species, root_directory="./", hubbards=None, additio
 
                     if not testing:
                         relax = calculator.calculation_manager(calculation_sequence=["relax-mag"],
-                                                               add_settings_dict={"relax-mag": additional_settings},
+                                                               additional_settings={"relax-mag": additional_settings},
                                                                magnetic_moments=magnetic_configuration,
-                                                               hubbard_params=hubbards)
+                                                               hubbard_parameters=hubbards)
                     os.chdir("../")
             
             # elif not magnetic
@@ -964,7 +958,7 @@ def convex_hull_relaxations(species, root_directory="./", hubbards=None, additio
                       f"it is assumed that the calculation is non magnetic")
                 if not testing:
                     relax = calculator.calculation_manager(calculation_sequence=["relax"],
-                                                           add_settings_dict={"relax": adds})
+                                                           additional_settings={"relax": adds})
             else:
                 raise TypeError("Wrong type for magnetic moments specified!")
             
