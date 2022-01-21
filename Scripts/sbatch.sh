@@ -1,34 +1,31 @@
 #!/bin/bash -l
-# Use the current working directory
+
+#SBATCH --job-name=SnO
+#SBATCH --nodes=8
+#SBATCH --tasks-per-node=128
+#SBATCH --cpus-per-task=1
+#SBATCH --time=24:00:00
+
+#SBATCH --account=e448
+#SBATCH --partition=standard
+#SBATCH --qos=standard
+
 #SBATCH -D ./
-# Use the current environment for this job.
 #SBATCH --export=ALL
-# Define job name
-#SBATCH -J ASE_test
-# Define a standard output file. When the job is running, %u will be replaced by user name,
-# %N will be replaced by the name of the node that runs the batch script, and %j will be replaced by job id number.
+
 #SBATCH -o vasp.%u.%N.%j.out
-# Define a standard error file
 #SBATCH -e vasp.%u.%N.%j.err
-#qos
-#SBATCH --qos=dedicated
-# Request the partition
-#SBATCH -p rosseinsky
-# Request the number of rosseinsky
-#SBATCH -N 1
-# Request the total number of cores
-#SBATCH -n 40
-# This asks for 0 days, 1 hour, 0 minutes and 0 seconds of time.
-#SBATCH -t 2-00:00:00
-# Specify memory per core
-#SBATCH --mem-per-cpu=8000M
-#
-module purge
-module load vasp544
 
-export VASP_SCRIPT=$HOME/volatile/ASE_testing/Scripts/run_vasp.py
-export VASP_PP_PATH=/opt/apps/chemistry/VASP/POTCAR_Files/potpaw_PBE.54/
 
+# Load Python
+module load cray-python
+
+export VASP_PP_PATH=/work/e448/e448/rd71/Pseudopotentials/
+export VASP_SCRIPT=/work/e448/e448/rd71/Phase-Fields/Mn-Fe-O-Br/run_vasp.py
+
+export PYTHONUSERBASE=/work/e448/e448/rd71/.local
+export PATH=$PYTHONUSERBASE:$PATH
+export PYTHONPATH=$PYTHONUSERBASE/lib/python3.9/site-packages:$PYTHONPATH
 
 echo =========================================================   
 echo SLURM job: submitted  date = `date`      
@@ -54,31 +51,25 @@ echo "Submit host                  : $SLURM_SUBMIT_HOST"
 echo "Queue/Partition name         : $SLURM_JOB_PARTITION"
 echo "Node list                    : $SLURM_JOB_NODELIST"
 echo "Hostname of 1st node         : $HOSTNAME"
-echo "Number of rosseinsky allocated    : $SLURM_JOB_NUM_NODES or $SLURM_NNODES"
+echo "Number of nodes allocated    : $SLURM_JOB_NUM_NODES or $SLURM_NNODES"
 echo "Number of processes          : $SLURM_NTASKS"
 echo "Number of processes per node : $SLURM_TASKS_PER_NODE"
 echo "Requested tasks per node     : $SLURM_NTASKS_PER_NODE"
 echo "Requested CPUs per task      : $SLURM_CPUS_PER_TASK"
 echo "Scheduling priority          : $SLURM_PRIO_PROCESS"
-
-
-
-
 echo "Running parallel job:"
 
-# If you use all of the cores specified in the -n line above, you do not need
-# to specify how many MPI processes to use - that is the default
-# the ret flag is the return code, so you can spot easily if your code failed.
 
+# Load the VASP module
+module load vasp/5
 
-python3.6 MnFe2O4_testing.py
+# Avoid any unintentional OpenMP threading by setting OMP_NUM_THREADS
+export OMP_NUM_THREADS=1
+
+# Launch the code.
+python3.9 S_run.py
 
 ret=$?
-
-# If you only wanted to some of those slots, specify the precise number:
-#mpirun  -np 12 $EXEC 
-#ret=$?
-
 
 echo   
 echo ---------------                                           
@@ -94,3 +85,4 @@ echo SLURM job: finished   date = `date`
 echo Total run time : $hours Hours $minutes Minutes $seconds Seconds
 echo =========================================================   
 exit $ret
+
