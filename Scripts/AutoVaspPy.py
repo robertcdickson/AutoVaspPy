@@ -4,7 +4,6 @@ import re
 import copy
 import json
 import shutil
-import environs
 import numpy as np
 from itertools import product
 
@@ -298,7 +297,7 @@ class VaspCalculations(object):
                 Number of k-points for band structure calculation
 
             test_run: bool
-                If True, a test run with minimal settings is run. Any results from a test run is unlinkely to be meaningful
+                If True, a test run with minimal settings is run. Any results from a test run is unlikely to be meaningful
                 and should only be used to check for any runtime errors that may occur.
 
         Returns:
@@ -823,7 +822,7 @@ class VaspCalculations(object):
     # TODO: EPS plot
 
 
-def get_convex_hull_species(key="0G4rqjSNG4M51Am0JNj", species=[], must_contain=[], filepath="./", elim=0.025):
+def get_convex_hull_species(key="0G4rqjSNG4M51Am0JNj", species=None, must_contain=None, filepath="./", elim=0.025):
     """
 
     Args:
@@ -832,6 +831,10 @@ def get_convex_hull_species(key="0G4rqjSNG4M51Am0JNj", species=[], must_contain=
         filepath:
         elim:
     """
+    if must_contain is None:
+        must_contain = []
+    if species is None:
+        species = []
     if not species:
         species = ["Mn", "Fe", "O"]
 
@@ -940,7 +943,7 @@ def convex_hull_relaxations(species: dict, root_directory="./", hubbards=None, a
             all convex hull species should run correctly (assuming no DFT errors or failures)
 
     Returns:
-
+        None
     """
 
     # change to location
@@ -956,7 +959,7 @@ def convex_hull_relaxations(species: dict, root_directory="./", hubbards=None, a
 
         os.chdir(f"{system}")
 
-        # gets all immediate subdirectories which should be named as mp codes but could be anything
+        # gets all immediate subdirectories which most often are as mp codes but could be anything
         subdirectories = [f.path for f in os.scandir("./") if f.is_dir()]
 
         # if there are no subdirectories then just run calculations in the current structure
@@ -998,10 +1001,11 @@ def convex_hull_relaxations(species: dict, root_directory="./", hubbards=None, a
                 print(
                     f"For {subdirectory} in system {system} a dictionary is given for magnetic moments and therefore\n"
                     f"it is assumed that {len(species[system])} magnetic structures are to be tested")
+
                 for key, magnetic_configuration in zip(species[system].keys(), species[system].values()):
 
                     if os.path.exists(f"./{key}"):
-                        rmtree(f"./{key}")
+                        continue
 
                     os.mkdir(f"./{key}")
                     os.chdir(f"./{key}")
@@ -1011,7 +1015,7 @@ def convex_hull_relaxations(species: dict, root_directory="./", hubbards=None, a
                                                                additional_settings={"relax-mag": additional_settings},
                                                                magnetic_moments=magnetic_configuration,
                                                                hubbard_parameters=hubbards)
-                    os.chdir("../")
+                    os.chdir(calculation_directory)
 
             # elif not magnetic
             elif species[system] is None:
