@@ -908,7 +908,41 @@ def ch_sorter(filepath):
         shutil.move(sub, dir_name)
 
 
-def convex_hull_relaxations(species: dict, root_directory="./", hubbards=None, additional_settings=None, testing=False):
+def converged_in_n_scf_cycles(outcar_file, n_steps=1):
+    """
+    Determines whether a VASP calculation converged in a single SCF cycle.
+
+    Parameters
+    ----------
+    outcar_file : str
+        OUTCAR file for this vasp calculation.
+    Returns
+    -------
+    converged : boolean
+        True if the calculation has converged, and did so within a single SCF cycle.
+
+    ---------------------------------------------------------------------------
+    Paul Sharp 27/10/2017
+    """
+
+    aborting_ionic_loop_marker = "aborting loop"
+    convergence_marker = "reached required accuracy"
+
+    num_convergence_strings = 0
+    num_ionic_loops = 0
+
+    with open(outcar_file, mode="r") as outcar:
+        for line in outcar:
+            num_convergence_strings += line.count(convergence_marker)
+            num_ionic_loops += line.count(aborting_ionic_loop_marker)
+
+    converged = num_convergence_strings > 0 and num_ionic_loops <= n_steps and num_ionic_loops != 0
+
+    return converged
+
+
+def convex_hull_relaxations(species: dict, root_directory="./", hubbards=None, additional_settings=None, testing=False,
+                            ignore_dirs=None):
     """
     directory nesting follows the following pattern:
 
@@ -946,21 +980,25 @@ def convex_hull_relaxations(species: dict, root_directory="./", hubbards=None, a
         None
     """
 
+    # TODO: implement a check for OUTCAR converged in n steps so that directories can be evaluated for whether they
+    # are already converged
+
+    # ignore_dirs stops repeated calculations
+    if ignore_dirs is None:
+        ignore_dirs = []
+
     # change to location
     os.chdir(root_directory)
+    owd = os.getcwd()
 
     # for each chemical system in composition space
     for system in species.keys():
         system_directory = os.getcwd()
 
-        # print("-" * 50)
-        # print(f"Running relaxation calculation for {system} in {system_directory}")
-        # print(f"Changing directory to {system_directory}")
-
         os.chdir(f"{system}")
 
         # gets all immediate subdirectories which most often are as mp codes but could be anything
-        subdirectories = [f.path for f in os.scandir("./") if f.is_dir()]
+        subdirectories = [f.path for f in os.scandir("./") if f.is_dir() and f.path.lstrip("./") not in ignore_dirs]
 
         # if there are no subdirectories then just run calculations in the current structure
         # note that if magnetic calculations are required, there still has to be a subdirectory to change into
@@ -980,10 +1018,15 @@ def convex_hull_relaxations(species: dict, root_directory="./", hubbards=None, a
                 os.mkdir(subdirectory)
             os.chdir(subdirectory)
 
-            # read poscar from the subdirectory as any children from here all have the same structures
-            initial_poscar = read("./POSCAR")  # TODO: add try-except here
+            if os.path.exists("./relax-mag/OUTCAR"):
+                if converged_in_n_scf_cycles("./relax-max/OUTCAR", 3) and os.path.exists("./relax-mag/vasprun.xml"):
+                    print("Converged OUTCAR and vasprun.xml found! Skipping system.")
+                    continue
 
-            calculator = VaspCalculations(initial_poscar, write_file=f"./{system}.out")
+            # read poscar from the subdirectory as any children from here all have the same structures
+            initial_poscar = read("./POSCAR")  # TODO: add try-except here?
+
+            calculator = VaspCalculations(initial_poscar, write_file=f"{owd}/convex_hull.out")
 
             # if only one magnetic configuration specified
             if type(species[system]) == list:
@@ -1122,17 +1165,16 @@ def plot_convex_hull(read_files=None, load_files=None, save_data=False,
     # compound all entries
     all_entries = loaded_entries + new_entries + additional_entries
     final_entries = []
-    
+
     # Generate and plot phase diagram
     for i in range(len(all_entries)):
         if all_entries[i] is not None:
             final_entries.append(all_entries[i])
-    
+
     if corrected:
         # corrected energies
         mp_compat = MaterialsProjectCompatibility()
         final_entries = mp_compat.process_entries(final_entries)
-
 
         # for i, entry in enumerate(pd.all_entries):
         #    pd.all_entries[i].correction = sum([j.value for j in mp_compat.get_adjustments(entry)])
@@ -1149,7 +1191,7 @@ def plot_convex_hull(read_files=None, load_files=None, save_data=False,
                 energies[entry.composition.alphabetical_formula + f"-{i}"] = pd.get_e_above_hull(entry) * 1000
                 try:
                     decompositions[entry.composition.alphabetical_formula + f"-{i}"] = pd.get_decomposition(
-                    entry.composition)
+                        entry.composition)
                 except RuntimeError:
                     continue
 
@@ -1173,12 +1215,13 @@ def get_reflectivity(epsilon, energy_ev):
 
     epsilon_re = epsilon.real
     epsilon_im = epsilon.imag
-    norm_epsilon = np.sqrt(epsilon_re**2 + epsilon_im**2)
+    norm_epsilon = np.sqrt(epsilon_re ** 2 + epsilon_im ** 2)
 
     refractive_index = np.sqrt((epsilon_re + norm_epsilon) / 2.)
     ext_coeff = np.sqrt((-epsilon_re + norm_epsilon) / 2.)
-    reflectivity = ( (refractive_index - 1.)**2 + ext_coeff**2 ) / ( (refractive_index + 1.)**2 + ext_coeff**2 )
-    absorption = (energy_ev*epsilon_im/refractive_index)/1.9746*10.0e-7 #it is equivalent to 2.0*energies*extint_coeff/c or 4*pi*extint_coeff/lambda
+    reflectivity = ((refractive_index - 1.) ** 2 + ext_coeff ** 2) / ((refractive_index + 1.) ** 2 + ext_coeff ** 2)
+    absorption = (
+                             energy_ev * epsilon_im / refractive_index) / 1.9746 * 10.0e-7  # it is equivalent to 2.0*energies*extint_coeff/c or 4*pi*extint_coeff/lambda
     return reflectivity
 
 
@@ -1391,6 +1434,7 @@ def get_colour_dict(energy_ev, reflectivity, file_d65illuminant, file_cmf, wavel
         sB = 0
     elif sB > 255:
         sB = 255
+
     # Hexadecimal colour
     def clamp(x):
         return max(0, min(x, 255))  # to ensure that  0 < sR,sG,sB < 255
@@ -1471,7 +1515,7 @@ def get_metallic_reflectivity(drude_parameters, eps_im_inter, eps_re_inter, ener
     eps_im_y = eps_im_inter_y + eps_im_intra_y
     eps_re_z = eps_re_inter_z - eps_re_intra_z
     eps_im_z = eps_im_inter_z + eps_im_intra_z
-    
+
     # eps
     eps_x = eps_re_x + 1j * eps_im_x
     eps_y = eps_re_y + 1j * eps_im_y
@@ -1485,10 +1529,11 @@ def get_metallic_reflectivity(drude_parameters, eps_im_inter, eps_re_inter, ener
     refractive_index = np.sqrt((eps.real + norm_epsilon) / 2.)
     extint_coeff = np.sqrt((-eps.real + norm_epsilon) / 2.)
     reflectivity = ((refractive_index - 1.) ** 2 + extint_coeff ** 2) / (
-                (refractive_index + 1.) ** 2 + extint_coeff ** 2)
-    absorption = (energies * eps.imag / refractive_index) / 1.9746 * 10.0e-7  # it is equivalent to 2.0*energies*extint_coeff/c or 4*pi*extint_coeff/lambda
+            (refractive_index + 1.) ** 2 + extint_coeff ** 2)
+    absorption = (
+                             energies * eps.imag / refractive_index) / 1.9746 * 10.0e-7  # it is equivalent to 2.0*energies*extint_coeff/c or 4*pi*extint_coeff/lambda
     conductivity = 1j * energies / (4. * np.pi) * (
-                1 - (eps.real + 1j * eps.imag))  # conductivity = 1j*energies/(4.*np.pi)*(1 - eps)
+            1 - (eps.real + 1j * eps.imag))  # conductivity = 1j*energies/(4.*np.pi)*(1 - eps)
 
     # Reflectivity as a function of the wavelength
     wavelengths_nm = 1239.8 / energies  # in nm
@@ -1501,4 +1546,3 @@ def get_metallic_reflectivity(drude_parameters, eps_im_inter, eps_re_inter, ener
     eps_re_inter_avg = (eps_re_inter_x + eps_re_inter_y + eps_re_inter_z) / 3.
 
     return wavelengths_nm, reflectivity, eps
-
