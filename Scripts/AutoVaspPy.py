@@ -822,7 +822,7 @@ class VaspCalculations(object):
     # TODO: EPS plot
 
 
-def get_convex_hull_species(key="0G4rqjSNG4M51Am0JNj", species=None, must_contain=None, filepath="./", elim=0.025):
+def get_convex_hull_species(key=None, species=None, must_contain=None, filepath="./", elim=0.025):
     """
 
     Args:
@@ -1074,7 +1074,7 @@ def convex_hull_relaxations(species: dict, root_directory="./", hubbards=None, a
         os.chdir(system_directory)
 
 
-def get_magnetic_moments_from_mp(root="./", write_file="./magnetic_moments"):
+def get_magnetic_moments_from_mp(key=None, root="./", write_file="./magnetic_moments"):
     """
     Fetches all magnetic moments of species in a convex hull and writes these as a dictionary to a file
     Args:
@@ -1092,7 +1092,7 @@ def get_magnetic_moments_from_mp(root="./", write_file="./magnetic_moments"):
     # get_ch(species=["Ni", "Mn", "O", "Fe", "Cr"], filepath="./")
     # ch_sorter(filepath="./")
     mags = {}
-    with MPRester("0G4rqjSNG4M51Am0JNj") as m:
+    with MPRester(key) as m:
         for key in mp_keys:
             material = m.get_structure_by_material_id(key)
             moments = MPRelaxSet(material)
