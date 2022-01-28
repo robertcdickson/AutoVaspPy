@@ -7,8 +7,8 @@ import shutil
 import numpy as np
 from itertools import product
 
-from shutil import rmtree
 from ase.io import read
+from ase import Atoms
 from ase.dft.kpoints import bandpath
 from ase.calculators.vasp import Vasp
 from pymatgen.ext.matproj import MPRester
@@ -22,13 +22,13 @@ from calculation_settings import *
 
 
 class VaspCalculations(object):
-
-    def __init__(self, structure, write_file="output.out"):
+    def __init__(self, structure: Atoms, write_file="output.out"):
         """
 
         Args:
-            structure: ase atoms
+            structure: Atoms
                 atoms object that defines the system under investigation
+
             write_file: str
                 name of the file to send output
 
@@ -56,19 +56,30 @@ class VaspCalculations(object):
     def write_intro(self):
         self.f.write(" " + "-" * 78 + " \n")
         self.f.write("|" + " " * 78 + "|\n")
-        self.f.write("|    AutoVaspy: A helpful* Python interface to pipeline VASP calculations.    |\n")
+        self.f.write(
+            "|    AutoVaspy: A helpful* Python interface to pipeline VASP calculations.    |\n"
+        )
         self.f.write("|" + " " * 78 + "|\n")
         self.f.write("|" + " " * 78 + "|\n")
         self.f.write("|" + " " * 78 + "|\n")
         self.f.write("|" + " " * 78 + "|\n")
-        self.f.write("|                    *Helpfulness absolutely not guaranteed                    |\n")
+        self.f.write(
+            "|                    *Helpfulness absolutely not guaranteed                    |\n"
+        )
         self.f.write(" " + "-" * 78 + " \n")
         self.f.write("\n\n\n\n\n")
         self.f.flush()
 
-    def parameter_testing(self, test: str, values, additional_settings: dict,
-                          magnetic_moments: list, hubbard_parameters: dict,
-                          general_settings="basic", plot=False, n_cycles=3):
+    def parameter_testing(
+            self,
+            test: str,
+            values: list,
+            additional_settings: dict,
+            magnetic_moments: list,
+            hubbard_parameters: dict,
+            plot=False,
+            n_cycles=3,
+    ):
         """
         A function for convergence testing of different VASP calculation_specific_parameters
 
@@ -98,7 +109,9 @@ class VaspCalculations(object):
             os.mkdir(f"{self.owd}/convergence_tests")
 
         self.f.write("-" * 80 + "\n")
-        self.f.write("{} testing with values of {}".format(test, values).center(80) + "\n")
+        self.f.write(
+            "{} testing with values of {}".format(test, values).center(80) + "\n"
+        )
         self.f.write("-" * 80 + "\n")
 
         # define path and check if directory exists
@@ -107,16 +120,15 @@ class VaspCalculations(object):
         if not os.path.exists(path_name):
             os.mkdir(path_name)
 
-        self.f.write("Testing calculations running from the directory:".center(80) + "\n")
+        self.f.write(
+            "Testing calculations running from the directory:".center(80) + "\n"
+        )
         self.f.write(f"{path_name}".center(80) + "\n")
         self.f.write("-" * 80 + "\n")
         self.f.write(f"{test} Energy".center(80) + "\n")
 
         # list for storage of tested output
         energies = []
-
-        # append the general VASP keywords for the test
-        vasp_keywords = self.general_calculation_settings[general_settings]
 
         # iterate over all values
         for test_value in values:
@@ -140,17 +152,21 @@ class VaspCalculations(object):
                 additional_settings = {}
 
             if hubbard_parameters:
-                additional_settings.update(self.calculation_specific_parameters["hubbard"])
+                additional_settings.update(
+                    self.calculation_specific_parameters["hubbard"]
+                )
                 additional_settings["ldau_luj"] = hubbard_parameters
 
             # update keywords dictionary to have new test value
             additional_settings[test_variable] = test_value
 
             # run calculation
-            _, energy = self.single_vasp_calc(calculation_type="scf-mag",
-                                              additional_settings=additional_settings,
-                                              magnetic_moments=magnetic_moments,
-                                              max_cycles=1)
+            _, energy = self.single_vasp_calc(
+                calculation_type="scf-mag",
+                additional_settings=additional_settings,
+                magnetic_moments=magnetic_moments,
+                max_cycles=n_cycles,
+            )
 
             self.f.write(f"{test_value}, {energy}".center(80) + "\n")
             self.f.flush()
@@ -165,8 +181,8 @@ class VaspCalculations(object):
 
         if plot:
             import matplotlib
-            matplotlib.use('Agg')
-            import matplotlib.pyplot as plt
+
+            matplotlib.use("Agg")
 
             x = np.array(values)
             y = np.array(energies)
@@ -178,12 +194,14 @@ class VaspCalculations(object):
 
         return energies
 
-    def hubbard_testing(self, values: dict,
-                        additional_settings: dict,
-                        magnetic_moments: list,
-                        hubbard_parameters: dict,
-                        general_settings="basic",
-                        plot=False):
+    def hubbard_testing(
+            self,
+            values: dict,
+            additional_settings: dict,
+            magnetic_moments: list,
+            hubbard_parameters: dict,
+            # TODO: plot to be added
+    ):
 
         # get original directory as root
         owd = os.getcwd()
@@ -193,7 +211,9 @@ class VaspCalculations(object):
             os.mkdir(f"{self.owd}/convergence_tests")
 
         self.f.write("-" * 80 + "\n")
-        self.f.write("Hubbard testing with values of {}".format(values).center(80) + "\n")
+        self.f.write(
+            "Hubbard testing with values of {}".format(values).center(80) + "\n"
+        )
         self.f.write("-" * 80 + "\n")
 
         # define path and check if directory exists
@@ -202,18 +222,20 @@ class VaspCalculations(object):
         if not os.path.exists(path_name):
             os.mkdir(path_name)
 
-        self.f.write("Testing calculations running from the directory:".center(80) + "\n")
+        self.f.write(
+            "Testing calculations running from the directory:".center(80) + "\n"
+        )
         self.f.write(f"{path_name}".center(80) + "\n")
         self.f.write("-" * 80 + "\n")
         self.f.write(f"Hubbard Energy".center(80) + "\n")
 
-        testing_hubbards = [{x: y for x, y in zip(values.keys(), z)} for z in list(product(*values.values()))]
+        testing_hubbards = [
+            {x: y for x, y in zip(values.keys(), z)}
+            for z in list(product(*values.values()))
+        ]
 
         # list for storage of tested output
         energies = []
-
-        # append the general VASP keywords for the test
-        vasp_keywords = self.general_calculation_settings[general_settings]
 
         for test_set in testing_hubbards:
             test_dict = ""
@@ -237,10 +259,12 @@ class VaspCalculations(object):
                 additional_settings["ldau_luj"][key]["U"] = value
 
             # run calculation
-            _, energy = self.single_vasp_calc(calculation_type="scf-mag",
-                                              additional_settings=additional_settings,
-                                              magnetic_moments=magnetic_moments,
-                                              max_cycles=1)
+            _, energy = self.single_vasp_calc(
+                calculation_type="scf-mag",
+                additional_settings=additional_settings,
+                magnetic_moments=magnetic_moments,
+                max_cycles=1,
+            )
 
             write_data = ""
             for value in test_set.values():
@@ -259,30 +283,39 @@ class VaspCalculations(object):
 
         return energies
 
-    def make_hse_kpoints(self, ibz_file, nkpts):
-        """ This function aims to make the KPOINTS file needed for hybrid functional band structures
+    def make_hse_kpoints(self, ibz_file):
+        """This function aims to make the KPOINTS file needed for hybrid functional band structures
 
         The required sequence is as follows:
         1.  standard non-hybrid DFT run
         2.  using converged WAVECAR, hybrid-DFT run
         3.  zero-weight KPOINTS run using IBZKPTS file from (2)
 
-        "Mind: Remove from the band structure plot the eigenvalues corresponding to the the regular k-points mesh."
+        "Mind: Remove from the band structure plot the eigenvalues corresponding to the regular k-points mesh."
         :return:
         """
         shutil.copy2(ibz_file, "./KPOINTS")
         band_path = self.get_band_path()[0]
+        return band_path
 
-    def calculation_manager(self, calculation_sequence=None, additional_settings=None, magnetic_moments=None,
-                            hubbard_parameters=None, nkpts=200, test_run=False, max_cycles=3):
+    def calculation_manager(
+            self,
+            calculation_sequence=None,
+            additional_settings=None,
+            magnetic_moments=None,
+            hubbard_parameters=None,
+            nkpts=200,
+            test_run=False,
+            max_cycles=3,
+    ):
 
         """
         A calculation manager that can run a sequence of calculations for a given system.
-        
+
         Args:
             calculation_sequence: list
-                A list of calculations to run. Currently implemented are relax, scf, bands, eps which can be suffixed with
-                "-mag" to allow for magnetic calculations
+                A list of calculations to run. Currently implemented are relax, scf, bands, eps which can be suffixed
+                with "-mag" to allow for magnetic calculations
 
             additional_settings: dict
                 A dictionary of dictionaries for extra vasp setting for each calculation stage
@@ -297,8 +330,8 @@ class VaspCalculations(object):
                 Number of k-points for band structure calculation
 
             test_run: bool
-                If True, a test run with minimal settings is run. Any results from a test run is unlikely to be meaningful
-                and should only be used to check for any runtime errors that may occur.
+                If True, a test run with minimal settings is run. Any results from a test run is unlikely to be
+                meaningful and should only be used to check for any runtime errors that may occur.
 
         Returns:
             current_structure: ase atoms
@@ -309,7 +342,9 @@ class VaspCalculations(object):
 
         # default calculation sequence is relaxation and scf
         if calculation_sequence is None:
-            raise ValueError("No calculation sequence (calculation_sequence) specified!")
+            raise ValueError(
+                "No calculation sequence (calculation_sequence) specified!"
+            )
 
         if additional_settings is None:
             additional_settings = {}
@@ -319,9 +354,13 @@ class VaspCalculations(object):
 
         # check for test run
         if test_run:
-            self.f.write("Test run is selected. This run will use minimal settings to test that transitions"
-                         "between calculations run smoothly. \n")
-            self.f.write("IMPORTANT NOTE!!: Results from test runs are meaningless. Please DO NOT use these results!\n")
+            self.f.write(
+                "Test run is selected. This run will use minimal settings to test that transitions"
+                "between calculations run smoothly. \n"
+            )
+            self.f.write(
+                "IMPORTANT NOTE!!: Results from test runs are meaningless. Please DO NOT use these results!\n"
+            )
 
         # all output of individual calculations is written to the one file (which note: is always open)
         self.f.write("-" * 20 + "\n")
@@ -333,9 +372,14 @@ class VaspCalculations(object):
             self.f.write(f"Additional settings: {copy_add_settings_dict} \n")
         self.f.write("-" * 20 + "\n")
 
+        current_structure = None
+        energy = None
+
         # loop through all calculations
         for i, calc in enumerate(calculation_sequence):
-            self.f.write(f"Beginning calculation: {calc} as calculation {i + 1} in sequence. \n")
+            self.f.write(
+                f"Beginning calculation: {calc} as calculation {i + 1} in sequence. \n"
+            )
 
             # if no additional setting specified for a given calculation, add empty dict
             if calc not in copy_add_settings_dict:
@@ -349,7 +393,9 @@ class VaspCalculations(object):
             if "mag" in calc:
                 self.f.write("Calculation is magnetic! \n")
                 if not magnetic_moments:
-                    self.f.write("No magnetic moments are specified. Are you sure this is correct? \n")
+                    self.f.write(
+                        "No magnetic moments are specified. Are you sure this is correct? \n"
+                    )
                 else:
                     self.f.write(f"Initial magnetic moments are: {magnetic_moments} \n")
                 mag_moments = magnetic_moments
@@ -357,12 +403,18 @@ class VaspCalculations(object):
                 # hubbard check
                 if not hubbard_parameters:
                     self.f.write(
-                        "No hubbard calculation_specific_parameters requested. Are you sure this calculation will converge? \n")
+                        "No hubbard calculation_specific_parameters requested. Are you sure this calculation will "
+                        "converge? \n "
+                    )
                 else:
                     # check if additional_settings already exists and append ldau_luj values
-                    self.f.write(f"Hubbard values to be used are as follows: {hubbard_parameters} \n")
+                    self.f.write(
+                        f"Hubbard values to be used are as follows: {hubbard_parameters} \n"
+                    )
 
-                    copy_add_settings_dict[calc].update(self.calculation_specific_parameters["hubbard"])
+                    copy_add_settings_dict[calc].update(
+                        self.calculation_specific_parameters["hubbard"]
+                    )
                     copy_add_settings_dict[calc]["ldau_luj"] = hubbard_parameters
 
             else:
@@ -384,20 +436,33 @@ class VaspCalculations(object):
                 read_safe_file = False
 
             # run calculation
-            current_struct, energy = self.single_vasp_calc(calculation_type=calc,
-                                                           additional_settings=copy_add_settings_dict[calc],
-                                                           path_name=path,
-                                                           write_safe_files=write_safe_file,
-                                                           read_safe_files=read_safe_file,
-                                                           magnetic_moments=mag_moments,
-                                                           nkpts=nkpts, testing=test_run, max_cycles=max_cycles)
+            current_structure, energy = self.single_vasp_calc(
+                calculation_type=calc,
+                additional_settings=copy_add_settings_dict[calc],
+                path_name=path,
+                write_safe_files=write_safe_file,
+                read_safe_files=read_safe_file,
+                magnetic_moments=mag_moments,
+                nkpts=nkpts,
+                testing=test_run,
+                max_cycles=max_cycles,
+            )
 
-        return current_struct, energy
+        return current_structure, energy
 
-    def single_vasp_calc(self, calculation_type="scf", additional_settings={}, path_name="./", nkpts=200,
-                         read_safe_files=False, write_safe_files=False, magnetic_moments=None, testing=False,
-                         max_cycles=10,
-                         general_settings="basic"):
+    def single_vasp_calc(
+            self,
+            calculation_type="scf",
+            additional_settings=None,
+            path_name="./",
+            nkpts=200,
+            read_safe_files=False,
+            write_safe_files=False,
+            magnetic_moments=None,
+            testing=False,
+            max_cycles=10,
+            general_settings="basic",
+    ):
         """
 
         Parameters
@@ -419,9 +484,14 @@ class VaspCalculations(object):
         """
 
         # check if directory already exists and if not change to directory
+        if additional_settings is None:
+            additional_settings = {}
         if not os.path.exists(path_name):
             os.mkdir(path_name)
         os.chdir(path_name)
+
+        structure = None
+        energy = None
 
         # if safe files to be used copy to cwd
         if read_safe_files:
@@ -477,12 +547,11 @@ class VaspCalculations(object):
                         shutil.copy2("CONTCAR", "POSCAR")
                     try:
                         self.structure = read(
-                            "./POSCAR")  # need to read in the new POSCAR after every run for consistency
+                            "./POSCAR"
+                        )  # need to read in the new POSCAR after every run for consistency
                     except IndexError:
                         shutil.copy2("POSCAR-PREVIOUS-RUN", "POSCAR")
                         self.structure = read("./POSCAR")
-
-                    # vasp_settings.update({"icharg": 1, "istart": 0})
 
                 # run calculation
                 structure, energy, result = self.run_vasp(vasp_settings)
@@ -498,7 +567,9 @@ class VaspCalculations(object):
                 if steps >= max_cycles:
                     break
 
-                self.structure.set_initial_magnetic_moments(magmoms=self.structure.get_magnetic_moments())
+                self.structure.set_initial_magnetic_moments(
+                    magmoms=self.structure.get_magnetic_moments()
+                )
 
         else:
             # if band structure type calculation the get_band_path function for the k-point path
@@ -529,10 +600,12 @@ class VaspCalculations(object):
         This routine will make use of WAVECAR and CONTCAR files if they are available.
         Parameters
         ----------
-        structure : ASE atoms
-            The structure used in the VASP calculation
+
         vasp_settings : dict
             The set of VASP options to apply with their values.
+        restart : bool
+            Determines if a calculation is to be restarted
+
         Returns
         -------
         structure : ase atoms
@@ -542,10 +615,9 @@ class VaspCalculations(object):
         result : string
             The result of the VASP calculation,
             either "converged", "unconverged", "vasp failure", or "timed out"
+
         ---------------------------------------------------------------------------
         Paul Sharp 25/09/2017
-        :param vasp_settings:
-        :param restart:
         """
 
         # Set files for calculation
@@ -559,31 +631,35 @@ class VaspCalculations(object):
 
         # Run calculation, and consider any exception to be a VASP failure
         # NOTE: you can get a Value error here from a function (ironically) calculating stress due to large stress
-        # Make sure your cut off energy is large enough
+        # Make sure your cutoff energy is large enough
         try:
             energy = structure.get_potential_energy()
+
         except UnboundLocalError:
             print("UnboundLocalError found so trying to turn off symmetry")
             try:
                 vasp_settings["isym"] = 0
                 structure.set_calculator(Vasp(**vasp_settings, restart=restart))
                 energy = structure.get_potential_energy()
-            except:
+            except ValueError:
                 result = "vasp failure"
+
         except IndexError:
             try:
                 vasp_settings["isym"] = 0
                 structure.set_calculator(Vasp(**vasp_settings, restart=restart))
                 energy = structure.get_potential_energy()
-            except:
+            except ValueError:
                 result = "vasp failure"
-            print("INDEX ERROR")
-            result = "vasp failure"
+
         except ValueError:
-            print("String-to-float error implies that energy has blown up. Please check settings!")
+            print(
+                "String-to-float error implies that energy has blown up. Please check settings!"
+            )
 
         return structure, energy, result
 
+    @staticmethod
     def batch_calculations(self, directories, constants, add_settings_dict=None, *args):
         """
 
@@ -613,7 +689,7 @@ class VaspCalculations(object):
     def get_band_path(self, nkpts=50):
         # This defines the band structures from Setwayan et al
 
-        """        # get structure
+        """# get structure
         if "xml" in file:
             k_structure = Vasprun(file).final_structure
         elif "POSCAR" in file:
@@ -621,16 +697,17 @@ class VaspCalculations(object):
         else:
             raise TypeError("File type must be POSCAR or vasprun.xml")"""
         # This defines the band structures from Setwayan et al
-        from matplotlib import pyplot as plt
 
-        path = bandpath(path=None, cell=self.structure.cell, npoints=nkpts, eps=1E-3)
+        path = bandpath(path=None, cell=self.structure.cell, npoints=nkpts, eps=1e-3)
         return path.kpts, path.path
 
     @staticmethod
     def plot_band_path(self, file="vasprun.xml", path="./", eng="0", reference=0.0):
         read_obj = read(path + file)
 
-    def self_consistent_hubbard(self, relax=False, species=None, setup_param=None, mag=False, ignore_scf=False):
+    def self_consistent_hubbard(
+            self, relax=False, species=None, setup_param=None, mag=False, ignore_scf=False
+    ):
         """
 
         This function follows the work of the SI from Curnan and Kitchin
@@ -659,9 +736,9 @@ class VaspCalculations(object):
         """
 
         if species is None:
-            species = {"Fe": "d", "Fe": "", "O": ""}
+            species = {"Fe": "d", "O": ""}
         if setup_param is None:
-            setup_param = {1: 'Fe'}
+            setup_param = {1: "Fe"}
 
         # hubb_dir is going to store the ldau_luj values
         hubb_dir = {}
@@ -688,7 +765,7 @@ class VaspCalculations(object):
                 active_species = atom
 
             # update hubbard directory
-            hubb_dir.update({atom: {'L': orbital, 'U': 0, 'J': 0}})
+            hubb_dir.update({atom: {"L": orbital, "U": 0, "J": 0}})
 
         if not active_species:
             raise ValueError("No active species specified!")
@@ -714,8 +791,12 @@ class VaspCalculations(object):
 
         # run calculations
         if not ignore_scf:
-            self.calculation_manager(calculation_sequence=calc_seq, additional_settings=add_settings,
-                                     magnetic_moments=None, hubbard_parameters=hubb_dir)
+            self.calculation_manager(
+                calculation_sequence=calc_seq,
+                additional_settings=add_settings,
+                magnetic_moments=None,
+                hubbard_parameters=hubb_dir,
+            )
 
         # loop through all requested values of alpha
         for alpha in alpha_range:
@@ -737,10 +818,12 @@ class VaspCalculations(object):
                 # copy CHGCAR and WAVECAR from scf step
 
                 # update alpha value in hubb_dir
-                hubb_dir[active_species].update({'U': alpha, 'J': alpha})
+                hubb_dir[active_species].update({"U": alpha, "J": alpha})
                 chi_settings.update(hubb_dir)
 
-                if mag:  # magnetism hasn't worked for MnFe2O4 so far but non-magnetic seems to work quite well
+                if (
+                        mag
+                ):  # magnetism hasn't worked for MnFe2O4 so far but non-magnetic seems to work quite well
                     mag = "-mag"
 
                 if step == "bare":
@@ -749,8 +832,12 @@ class VaspCalculations(object):
                 elif step == "inter":
                     chi_settings.update({"icharg": 1})
 
-                self.single_vasp_calc("scf" + mag, additional_settings=chi_settings, path_name="./",
-                                      write_safe_file=True)
+                self.single_vasp_calc(
+                    "scf" + mag,
+                    additional_settings=chi_settings,
+                    path_name="./",
+                    write_safe_file=True,
+                )
 
                 os.chdir("../")
             os.chdir("../")
@@ -822,7 +909,13 @@ class VaspCalculations(object):
     # TODO: EPS plot
 
 
-def get_convex_hull_species(key="0G4rqjSNG4M51Am0JNj", species=None, must_contain=None, filepath="./", elim=0.025):
+def get_convex_hull_species(
+        key="0G4rqjSNG4M51Am0JNj",
+        species=None,
+        must_contain=None,
+        filepath="./",
+        elim=0.025,
+):
     """
 
     Args:
@@ -852,7 +945,10 @@ def get_convex_hull_species(key="0G4rqjSNG4M51Am0JNj", species=None, must_contai
         for entry in mp_entries:
 
             if must_contain:
-                if all(species in entry.composition.alphabetical_formula for species in must_contain):
+                if all(
+                        species in entry.composition.alphabetical_formula
+                        for species in must_contain
+                ):
                     get_entry = True
                 else:
                     get_entry = False
@@ -861,7 +957,9 @@ def get_convex_hull_species(key="0G4rqjSNG4M51Am0JNj", species=None, must_contai
 
             if analyser.get_e_above_hull(entry) < elim and get_entry:
 
-                formula_dir = f"./{entry.composition.alphabetical_formula.replace(' ', '')}"
+                formula_dir = (
+                    f"./{entry.composition.alphabetical_formula.replace(' ', '')}"
+                )
 
                 if os.path.exists(formula_dir):
                     os.chdir(formula_dir)
@@ -889,7 +987,7 @@ def ch_sorter(filepath):
     os.chdir(filepath)
     subdirectories = [f.path.strip("./") for f in os.scandir("./") if f.is_dir()]
     for sub in subdirectories:
-        x = re.split('[0-9]', sub)[:-1]
+        x = re.split("[0-9]", sub)[:-1]
         filtered_x = sorted(list(filter(None, x)))
         dir_name = ""
         for i in filtered_x:
@@ -936,13 +1034,23 @@ def converged_in_n_scf_cycles(outcar_file, n_steps=1):
             num_convergence_strings += line.count(convergence_marker)
             num_ionic_loops += line.count(aborting_ionic_loop_marker)
 
-    converged = num_convergence_strings > 0 and num_ionic_loops <= n_steps and num_ionic_loops != 0
+    converged = (
+            num_convergence_strings > 0
+            and num_ionic_loops <= n_steps
+            and num_ionic_loops != 0
+    )
 
     return converged
 
 
-def convex_hull_relaxations(species: dict, root_directory="./", hubbards=None, additional_settings=None, testing=False,
-                            ignore_dirs=None):
+def convex_hull_relaxations(
+        species: dict,
+        root_directory="./",
+        hubbards=None,
+        additional_settings=None,
+        testing=False,
+        ignore_dirs=None,
+):
     """
     directory nesting follows the following pattern:
 
@@ -968,20 +1076,20 @@ def convex_hull_relaxations(species: dict, root_directory="./", hubbards=None, a
         root_directory (str):
             Location of convex hull species subdirectories
         hubbards (dict):
-            A dictionary of hubbard calculation_specific_parameters for each atom in the form required for the ase python module
-            (see https://wiki.fysik.dtu.dk/ase/ase/calculators/vasp.html#ld-s-a-u)
+            A dictionary of hubbard calculation_specific_parameters for each atom in the form required for the ase python
+            module (see https://wiki.fysik.dtu.dk/ase/ase/calculators/vasp.html#ld-s-a-u)
         additional_settings (dict):
             A dictionary of settings to be used for all systems in the convex hull
         testing (bool):
             If true, will run function without running any DFT calculations to test for errors. If no errors returned,
             all convex hull species should run correctly (assuming no DFT errors or failures)
+        ignore_dirs (list):
+            Names of directories to ignore if encountered. Useful for ignoring magnetic structures (i.e. "./FiM") from
+            being rerun
 
     Returns:
         None
     """
-
-    # TODO: implement a check for OUTCAR converged in n steps so that directories can be evaluated for whether they
-    # are already converged
 
     # ignore_dirs stops repeated calculations
     if ignore_dirs is None:
@@ -998,7 +1106,11 @@ def convex_hull_relaxations(species: dict, root_directory="./", hubbards=None, a
         os.chdir(f"{system}")
 
         # gets all immediate subdirectories which most often are as mp codes but could be anything
-        subdirectories = [f.path for f in os.scandir("./") if f.is_dir() and f.path.lstrip("./") not in ignore_dirs]
+        subdirectories = [
+            f.path
+            for f in os.scandir("./")
+            if f.is_dir() and f.path.lstrip("./") not in ignore_dirs
+        ]
 
         # if there are no subdirectories then just run calculations in the current structure
         # note that if magnetic calculations are required, there still has to be a subdirectory to change into
@@ -1010,42 +1122,57 @@ def convex_hull_relaxations(species: dict, root_directory="./", hubbards=None, a
 
             calculation_directory = os.getcwd()
             print("-" * 50)
-            print(f"Running relaxation calculation for {system} in {calculation_directory}")
+            print(
+                f"Running relaxation calculation for {system} in {calculation_directory}"
+            )
             print(f"Changing directory to {calculation_directory}")
             print("-" * 50)
 
+            # TODO: is this actually necessary for any purpose?
             if not os.path.exists(subdirectory):
                 os.mkdir(subdirectory)
             os.chdir(subdirectory)
 
+            # if converged CONTCAR found, calculation does not need rerun and can continue
             if os.path.exists("./relax-mag/OUTCAR"):
-                if converged_in_n_scf_cycles("./relax-max/OUTCAR", 3) and os.path.exists("./relax-mag/vasprun.xml"):
+                if converged_in_n_scf_cycles(
+                        "./relax-max/OUTCAR", 3
+                ) and os.path.exists("./relax-mag/vasprun.xml"):
                     print("Converged OUTCAR and vasprun.xml found! Skipping system.")
                     continue
 
             # read poscar from the subdirectory as any children from here all have the same structures
             initial_poscar = read("./POSCAR")  # TODO: add try-except here?
 
-            calculator = VaspCalculations(initial_poscar, write_file=f"{owd}/convex_hull.out")
+            calculator = VaspCalculations(
+                initial_poscar, write_file=f"{owd}/convex_hull.out"
+            )
 
             # if only one magnetic configuration specified
             if type(species[system]) == list:
 
-                print(f"For {subdirectory} in system {system} a list is given for magnetic moments and therefore\n"
-                      f"it is assumed that only one magnetic structure is to be tested")
+                print(
+                    f"For {subdirectory} in system {system} a list is given for magnetic moments and therefore\n"
+                    f"it is assumed that only one magnetic structure is to be tested"
+                )
                 if not testing:
-                    relax = calculator.calculation_manager(calculation_sequence=["relax-mag"],
-                                                           additional_settings={"relax-mag": additional_settings},
-                                                           magnetic_moments=species[system],
-                                                           hubbard_parameters=hubbards)
+                    relax = calculator.calculation_manager(
+                        calculation_sequence=["relax-mag"],
+                        additional_settings={"relax-mag": additional_settings},
+                        magnetic_moments=species[system],
+                        hubbard_parameters=hubbards,
+                    )
 
             # elif multiple magnetic configurations specified
             elif type(species[system]) == dict:
                 print(
                     f"For {subdirectory} in system {system} a dictionary is given for magnetic moments and therefore\n"
-                    f"it is assumed that {len(species[system])} magnetic structures are to be tested")
+                    f"it is assumed that {len(species[system])} magnetic structures are to be tested"
+                )
 
-                for key, magnetic_configuration in zip(species[system].keys(), species[system].values()):
+                for key, magnetic_configuration in zip(
+                        species[system].keys(), species[system].values()
+                ):
 
                     if os.path.exists(f"./{key}"):
                         continue
@@ -1054,19 +1181,25 @@ def convex_hull_relaxations(species: dict, root_directory="./", hubbards=None, a
                     os.chdir(f"./{key}")
 
                     if not testing:
-                        relax = calculator.calculation_manager(calculation_sequence=["relax-mag"],
-                                                               additional_settings={"relax-mag": additional_settings},
-                                                               magnetic_moments=magnetic_configuration,
-                                                               hubbard_parameters=hubbards)
+                        relax = calculator.calculation_manager(
+                            calculation_sequence=["relax-mag"],
+                            additional_settings={"relax-mag": additional_settings},
+                            magnetic_moments=magnetic_configuration,
+                            hubbard_parameters=hubbards,
+                        )
                     os.chdir(calculation_directory)
 
             # elif not magnetic
             elif species[system] is None:
-                print(f"For {subdirectory} in system {system} no magnetic moments are specified and therefore\n"
-                      f"it is assumed that the calculation is non magnetic")
+                print(
+                    f"For {subdirectory} in system {system} no magnetic moments are specified and therefore\n"
+                    f"it is assumed that the calculation is non magnetic"
+                )
                 if not testing:
-                    relax = calculator.calculation_manager(calculation_sequence=["relax"],
-                                                           additional_settings={"relax": additional_settings})
+                    relax = calculator.calculation_manager(
+                        calculation_sequence=["relax"],
+                        additional_settings={"relax": additional_settings},
+                    )
             else:
                 raise TypeError("Wrong type for magnetic moments specified!")
 
@@ -1077,6 +1210,7 @@ def convex_hull_relaxations(species: dict, root_directory="./", hubbards=None, a
 def get_magnetic_moments_from_mp(root="./", write_file="./magnetic_moments"):
     """
     Fetches all magnetic moments of species in a convex hull and writes these as a dictionary to a file
+
     Args:
         root (str):
             The location of convex hull directories
@@ -1087,7 +1221,9 @@ def get_magnetic_moments_from_mp(root="./", write_file="./magnetic_moments"):
         mags:
     """
     os.chdir(root)
-    mp_keys = [f[0].split("/")[-1] for f in os.walk("./") if not f[0].split("/")[-1].find("mp")]
+    mp_keys = [
+        f[0].split("/")[-1] for f in os.walk("./") if not f[0].split("/")[-1].find("mp")
+    ]
 
     # get_ch(species=["Ni", "Mn", "O", "Fe", "Cr"], filepath="./")
     # ch_sorter(filepath="./")
@@ -1100,17 +1236,25 @@ def get_magnetic_moments_from_mp(root="./", write_file="./magnetic_moments"):
             # with open(f"{material.composition}/moments", "w") as wf:
             #    wf.write(moments.incar["MAGMOM"])
             print(f"{material.formula} has mag moms {moments}")
-            mags[f"{material.composition.alphabetical_formula.replace(' ', '')}"] = moments
+            mags[
+                f"{material.composition.alphabetical_formula.replace(' ', '')}"
+            ] = moments
 
-    with open(write_file, 'w') as wf:
+    with open(write_file, "w") as wf:
         wf.write("moments = " + json.dumps(mags))
 
     return mags
 
 
-def plot_convex_hull(read_files=None, load_files=None, save_data=False,
-                     convex_hull_loc="./convex_hull.txt", corrected=True, other_entries=[],
-                     new_entries_file=None):
+def plot_convex_hull(
+        read_files=None,
+        load_files=None,
+        save_data=False,
+        convex_hull_loc="./convex_hull.txt",
+        corrected=True,
+        other_entries=None,
+        new_entries_file=None,
+):
     """
 
     Args:
@@ -1124,10 +1268,15 @@ def plot_convex_hull(read_files=None, load_files=None, save_data=False,
     Returns:
 
     """
+    if other_entries is None:
+        other_entries = []
     from pymatgen.apps.borg.hive import VaspToComputedEntryDrone
     from pymatgen.apps.borg.queen import BorgQueen
     from pymatgen.analysis.phase_diagram import PhaseDiagram, PDPlotter
-    from pymatgen.entries.compatibility import MaterialsProjectCompatibility, MaterialsProject2020Compatibility
+    from pymatgen.entries.compatibility import (
+        MaterialsProjectCompatibility,
+        MaterialsProject2020Compatibility,
+    )
     import os
 
     loaded_entries = []
@@ -1171,6 +1320,8 @@ def plot_convex_hull(read_files=None, load_files=None, save_data=False,
         if all_entries[i] is not None:
             final_entries.append(all_entries[i])
 
+    print(final_entries)
+
     if corrected:
         # corrected energies
         mp_compat = MaterialsProjectCompatibility()
@@ -1187,11 +1338,16 @@ def plot_convex_hull(read_files=None, load_files=None, save_data=False,
     if convex_hull_loc:
         with open(convex_hull_loc, "w") as wf:
             for i, entry in enumerate(pd.all_entries):
-                wf.write(f"{entry.composition.alphabetical_formula}-{i}, {pd.get_e_above_hull(entry) * 1000:.2f}\n")
-                energies[entry.composition.alphabetical_formula + f"-{i}"] = pd.get_e_above_hull(entry) * 1000
+                wf.write(
+                    f"{entry.composition.alphabetical_formula}-{i}, {pd.get_e_above_hull(entry) * 1000:.2f}\n"
+                )
+                energies[entry.composition.alphabetical_formula + f"-{i}"] = (
+                        pd.get_e_above_hull(entry) * 1000
+                )
                 try:
-                    decompositions[entry.composition.alphabetical_formula + f"-{i}"] = pd.get_decomposition(
-                        entry.composition)
+                    decompositions[
+                        entry.composition.alphabetical_formula + f"-{i}"
+                        ] = pd.get_decomposition(entry.composition)
                 except RuntimeError:
                     continue
 
@@ -1199,33 +1355,45 @@ def plot_convex_hull(read_files=None, load_files=None, save_data=False,
         with open(new_entries_file, "w") as wf2:
             list_new_entries = [x for x in pd.all_entries if x in new_entries]
             for entry in list_new_entries:
-                wf2.write(f"{entry.composition.alphabetical_formula}, "
-                          f"{pd.get_e_above_hull(entry) * 1000:.2f}\n")
+                wf2.write(
+                    f"{entry.composition.alphabetical_formula}, "
+                    f"{pd.get_e_above_hull(entry) * 1000:.2f}\n"
+                )
 
     return pd, decompositions
 
 
 def get_reflectivity(epsilon, energy_ev):
-    '''
+    """
     Calculate reflectivity (at normal incidence) from the dielectric function.
 
     :param epsilon: complex numpy array with the dielectric function (real_part + imaginary_part*j)
     :return reflectivity: numpy array with the reflectivity
-    '''
+    """
 
     epsilon_re = epsilon.real
     epsilon_im = epsilon.imag
     norm_epsilon = np.sqrt(epsilon_re ** 2 + epsilon_im ** 2)
 
-    refractive_index = np.sqrt((epsilon_re + norm_epsilon) / 2.)
-    ext_coeff = np.sqrt((-epsilon_re + norm_epsilon) / 2.)
-    reflectivity = ((refractive_index - 1.) ** 2 + ext_coeff ** 2) / ((refractive_index + 1.) ** 2 + ext_coeff ** 2)
+    refractive_index = np.sqrt((epsilon_re + norm_epsilon) / 2.0)
+    ext_coeff = np.sqrt((-epsilon_re + norm_epsilon) / 2.0)
+    reflectivity = ((refractive_index - 1.0) ** 2 + ext_coeff ** 2) / (
+            (refractive_index + 1.0) ** 2 + ext_coeff ** 2
+    )
     absorption = (
-                             energy_ev * epsilon_im / refractive_index) / 1.9746 * 10.0e-7  # it is equivalent to 2.0*energies*extint_coeff/c or 4*pi*extint_coeff/lambda
+            (energy_ev * epsilon_im / refractive_index) / 1.9746 * 10.0e-7
+    )  # it is equivalent to 2.0*energies*extint_coeff/c or 4*pi*extint_coeff/lambda
     return reflectivity
 
 
-def plot_reflectivity(energy_ev, reflectivity, save_file=None, colour=(0, 0, 0), dark_theme=True, x_axis="nm"):
+def plot_reflectivity(
+        energy_ev,
+        reflectivity,
+        save_file=None,
+        colour=(0, 0, 0),
+        dark_theme=True,
+        x_axis="nm",
+):
     wavelength_nm = 1239.8 / energy_ev
 
     # extract the visible part of the reflectivity curve
@@ -1239,36 +1407,36 @@ def plot_reflectivity(energy_ev, reflectivity, save_file=None, colour=(0, 0, 0),
             energy_visible.append(energy_ev[i])
 
     fig = plt.figure(figsize=(8, 6))
-    fontpath = '/usr/share/fonts/avenir_ff/AvenirLTStd-Black.ttf'
+    fontpath = "/usr/share/fonts/avenir_ff/AvenirLTStd-Black.ttf"
     prop = font_manager.FontProperties(fname=fontpath)
 
     # padding for axes
-    rcParams['xtick.major.pad'] = '10'
-    rcParams['ytick.major.pad'] = '10'
-    rcParams['font.family'] = prop.get_name()
+    rcParams["xtick.major.pad"] = "10"
+    rcParams["ytick.major.pad"] = "10"
+    rcParams["font.family"] = prop.get_name()
 
     if dark_theme:
-        rcParams['axes.edgecolor'] = "white"
-        rcParams['text.color'] = "white"
-        rcParams['axes.labelcolor'] = "white"
-        rcParams['xtick.color'] = "white"
-        rcParams['ytick.color'] = "white"
+        rcParams["axes.edgecolor"] = "white"
+        rcParams["text.color"] = "white"
+        rcParams["axes.labelcolor"] = "white"
+        rcParams["xtick.color"] = "white"
+        rcParams["ytick.color"] = "white"
     else:
-        rcParams['axes.edgecolor'] = "black"
-        rcParams['text.color'] = "black"
-        rcParams['axes.labelcolor'] = "black"
-        rcParams['xtick.color'] = "black"
-        rcParams['ytick.color'] = "black"
+        rcParams["axes.edgecolor"] = "black"
+        rcParams["text.color"] = "black"
+        rcParams["axes.labelcolor"] = "black"
+        rcParams["xtick.color"] = "black"
+        rcParams["ytick.color"] = "black"
 
     if x_axis == "nm":
         plt.plot(wavelength_visible, reflectivity_visible, color=colour, linewidth=2.0)
         # plt.scatter(wavelength_visible, reflectivity_visible, color=colour, linewidth=2.0)
         # plt.scatter(wavelength_visible, reflectivity_visible, color=colour, linewidth=2.0)
-        plt.xlabel(r'Wavelength / nm', size=18)
+        plt.xlabel(r"Wavelength / nm", size=18)
     elif x_axis == "eV":
         plt.plot(energy_ev, reflectivity, color=colour, linewidth=2.0)
         # plt.scatter(wavelength_visible, reflectivity_visible, color=colour, linewidth=2.0)
-        plt.xlabel(r'Energy / eV', size=18)
+        plt.xlabel(r"Energy / eV", size=18)
 
     ax = plt.gca()
     # set dark color
@@ -1277,12 +1445,12 @@ def plot_reflectivity(energy_ev, reflectivity, save_file=None, colour=(0, 0, 0),
     else:
         ax.set_facecolor((255 / 255, 255 / 255, 255 / 255))
 
-    plt.ylabel('R($\lambda$)', size=18)
+    plt.ylabel("R($\lambda$)", size=18)
     # plt.xlim(380.0,780.0)
     # change axes tick labels size
     ax.tick_params(axis="x", labelsize=16)
     ax.tick_params(axis="y", labelsize=16)
-    plt.title(r'Reflectivity', size=24)
+    plt.title(r"Reflectivity", size=24)
     # legend and tight layout
     plt.legend(fontsize=18, fancybox=True, framealpha=0)
     if save_file:
@@ -1290,9 +1458,16 @@ def plot_reflectivity(energy_ev, reflectivity, save_file=None, colour=(0, 0, 0),
     return fig
 
 
-def get_colour_dict(energy_ev, reflectivity, file_d65illuminant, file_cmf, wavelength_steps='1nm', do_plot=True,
-                    dark_theme=True):
-    '''
+def get_colour_dict(
+        energy_ev,
+        reflectivity,
+        file_d65illuminant,
+        file_cmf,
+        wavelength_steps="1nm",
+        do_plot=True,
+        dark_theme=True,
+):
+    """
     Calculate colour coordinates from reflectivity.
 
     :param energy_ev: array with energy steps (must be in eV)
@@ -1311,7 +1486,7 @@ def get_colour_dict(energy_ev, reflectivity, file_d65illuminant, file_cmf, wavel
         'sRGB': standard RGB,
         'HEX': hexadecimals,
         }
-    '''
+    """
 
     data = np.genfromtxt(file_d65illuminant)
     d65_illuminant = data[:, 1]
@@ -1336,16 +1511,18 @@ def get_colour_dict(energy_ev, reflectivity, file_d65illuminant, file_cmf, wavel
             wavelength_visible.append(wavelength_nm[i])
             reflectivity_visible.append(reflectivity[i])
     # Polynomial fit of reflectivity_visible
-    fit_params, fit_residuals, _, __, ___ = np.polyfit(wavelength_visible, reflectivity_visible, 11, full=True)
+    fit_params, fit_residuals, _, __, ___ = np.polyfit(
+        wavelength_visible, reflectivity_visible, 11, full=True
+    )
     polynomial = np.poly1d(fit_params)
 
     wavelength_uniform = []
     reflectivity_fit = []
-    if wavelength_steps == '1nm':
+    if wavelength_steps == "1nm":
         for i in range(380, 781):
             wavelength_uniform.append(i)
             reflectivity_fit.append(polynomial(i))
-    elif wavelength_steps == '5nm':
+    elif wavelength_steps == "5nm":
         for i in range(380, 781, 5):
             wavelength_uniform.append(i)
             reflectivity_fit.append(polynomial(i))
@@ -1356,7 +1533,9 @@ def get_colour_dict(energy_ev, reflectivity, file_d65illuminant, file_cmf, wavel
     reflectivity_fit = np.array(reflectivity_fit)
 
     if len(reflectivity_fit) != len(d65_illuminant):
-        raise Exception("Fit of reflectivity in the visible range do not have the same lenght of D65 and CMFs data")
+        raise Exception(
+            "Fit of reflectivity in the visible range do not have the same lenght of D65 and CMFs data"
+        )
 
     # Calculate renormalization constant k
     k = 100.0 / sum(cmf_y * d65_illuminant)
@@ -1381,44 +1560,44 @@ def get_colour_dict(energy_ev, reflectivity, file_d65illuminant, file_cmf, wavel
 
     # Calculate L,a,b of CIELAB
     def f(x):
-        if x > (24. / 116.) ** 3:
-            return x ** (1. / 3.)
-        elif x <= (24. / 116.) ** 3:
-            return (841. / 108.) * x + (16. / 116.)
+        if x > (24.0 / 116.0) ** 3:
+            return x ** (1.0 / 3.0)
+        elif x <= (24.0 / 116.0) ** 3:
+            return (841.0 / 108.0) * x + (16.0 / 116.0)
 
-    l = 116. * f(y / y_n) - 16.
-    a = 500. * (f(x / x_n) - f(y / y_n))
-    b = 200. * (f(y / y_n) - f(z / z_n))
+    l = 116.0 * f(y / y_n) - 16.0
+    a = 500.0 * (f(x / x_n) - f(y / y_n))
+    b = 200.0 * (f(y / y_n) - f(z / z_n))
 
     # Calculate chroma and hue
     chroma = math.sqrt(a ** 2 + b ** 2)
     hue = math.degrees(math.atan(b / a))
 
     # Standard RGB (sRGB)
-    var_X = x / 100.
-    var_Y = y / 100.
-    var_Z = z / 100.
+    var_X = x / 100.0
+    var_Y = y / 100.0
+    var_Z = z / 100.0
 
     var_R = var_X * 3.2406 + var_Y * (-1.5372) + var_Z * (-0.4986)
     var_G = var_X * -0.9689 + var_Y * 1.8758 + var_Z * 0.0415
     var_B = var_X * 0.0557 + var_Y * (-0.2040) + var_Z * 1.0570
 
     if var_R > 0.0031308:
-        var_R = 1.055 * (var_R ** (1. / 2.4)) - 0.055
+        var_R = 1.055 * (var_R ** (1.0 / 2.4)) - 0.055
     else:
         var_R = 12.92 * var_R
     if var_G > 0.0031308:
-        var_G = 1.055 * (var_G ** (1. / 2.4)) - 0.055
+        var_G = 1.055 * (var_G ** (1.0 / 2.4)) - 0.055
     else:
         var_G = 12.92 * var_G
     if var_B > 0.0031308:
-        var_B = 1.055 * (var_B ** (1. / 2.4)) - 0.055
+        var_B = 1.055 * (var_B ** (1.0 / 2.4)) - 0.055
     else:
         var_B = 12.92 * var_B
 
-    sR = var_R * 255.
-    sG = var_G * 255.
-    sB = var_B * 255.
+    sR = var_R * 255.0
+    sG = var_G * 255.0
+    sB = var_B * 255.0
 
     if sR < 0:
         sR = 0
@@ -1443,35 +1622,46 @@ def get_colour_dict(energy_ev, reflectivity, file_d65illuminant, file_cmf, wavel
         plt.figure(figsize=(8, 8))
         rectangle_GGA = plt.Rectangle((0, 0), 50, 20, fc=[sR / 255, sG / 255, sB / 255])
         plt.gca().add_patch(rectangle_GGA)
-        plt.axis('off')
+        plt.axis("off")
 
-    return {'Colours':
-                {'Tristimulus values': {'X': x, 'Y': y, 'Z': z},
-                 'Chromaticity coordinates': {'x': x_chrom, 'y': y_chrom, 'z': z_chrom, },
-                 'CIELAB': {'L': l, 'a': a, 'b': b, 'Chroma': chroma, 'Hue': hue},
-                 'Yellowness index': d1925_index,
-                 'sRGB': {'R': sR, 'G': sG, 'B': sB},
-                 },
-            'Fit_residuals': fit_residuals,
-            }
+    return {
+        "Colours": {
+            "Tristimulus values": {"X": x, "Y": y, "Z": z},
+            "Chromaticity coordinates": {
+                "x": x_chrom,
+                "y": y_chrom,
+                "z": z_chrom,
+            },
+            "CIELAB": {"L": l, "a": a, "b": b, "Chroma": chroma, "Hue": hue},
+            "Yellowness index": d1925_index,
+            "sRGB": {"R": sR, "G": sG, "B": sB},
+        },
+        "Fit_residuals": fit_residuals,
+    }
 
 
 def get_dielectrics(vasprun):
-    real_avg = np.array([
-        sum(vasprun.dielectric[1][i][0:3]) / 3
-        for i in range(len(vasprun.dielectric_data["density"][0]))
-    ])
-    imag_avg = np.array([
-        sum(vasprun.dielectric[2][i][0:3]) / 3
-        for i in range(len(vasprun.dielectric_data["density"][0]))
-    ])
+    real_avg = np.array(
+        [
+            sum(vasprun.dielectric[1][i][0:3]) / 3
+            for i in range(len(vasprun.dielectric_data["density"][0]))
+        ]
+    )
+    imag_avg = np.array(
+        [
+            sum(vasprun.dielectric[2][i][0:3]) / 3
+            for i in range(len(vasprun.dielectric_data["density"][0]))
+        ]
+    )
     real_avg = real_avg
     imag_avg = imag_avg
     eps = real_avg + imag_avg * 1j
     return eps
 
 
-def get_metallic_reflectivity(drude_parameters, eps_im_inter, eps_re_inter, energy_eV, formula, broadening=0.1):
+def get_metallic_reflectivity(
+        drude_parameters, eps_im_inter, eps_re_inter, energy_eV, formula, broadening=0.1
+):
     """
     Calculate the optical constants
     :param parameters: ParameterData with input parameters
@@ -1502,11 +1692,23 @@ def get_metallic_reflectivity(drude_parameters, eps_im_inter, eps_re_inter, ener
 
     # eps intraband
     eps_re_intra_x = drude_plasma_freq_x ** 2 / (energies ** 2 + intra_broadening ** 2)
-    eps_im_intra_x = drude_plasma_freq_x ** 2 * intra_broadening / (energies * (energies ** 2 + intra_broadening ** 2))
+    eps_im_intra_x = (
+            drude_plasma_freq_x ** 2
+            * intra_broadening
+            / (energies * (energies ** 2 + intra_broadening ** 2))
+    )
     eps_re_intra_y = drude_plasma_freq_y ** 2 / (energies ** 2 + intra_broadening ** 2)
-    eps_im_intra_y = drude_plasma_freq_y ** 2 * intra_broadening / (energies * (energies ** 2 + intra_broadening ** 2))
+    eps_im_intra_y = (
+            drude_plasma_freq_y ** 2
+            * intra_broadening
+            / (energies * (energies ** 2 + intra_broadening ** 2))
+    )
     eps_re_intra_z = drude_plasma_freq_z ** 2 / (energies ** 2 + intra_broadening ** 2)
-    eps_im_intra_z = drude_plasma_freq_z ** 2 * intra_broadening / (energies * (energies ** 2 + intra_broadening ** 2))
+    eps_im_intra_z = (
+            drude_plasma_freq_z ** 2
+            * intra_broadening
+            / (energies * (energies ** 2 + intra_broadening ** 2))
+    )
 
     # eps interband+intraband
     eps_re_x = eps_re_inter_x - eps_re_intra_x
@@ -1522,27 +1724,33 @@ def get_metallic_reflectivity(drude_parameters, eps_im_inter, eps_re_inter, ener
     eps_z = eps_re_z + 1j * eps_im_z
 
     # eps average x,y,z
-    eps = (eps_x + eps_y + eps_z) / 3.
+    eps = (eps_x + eps_y + eps_z) / 3.0
 
     # The following quantities are all averaged along x,y,z
     norm_epsilon = np.sqrt(eps.real ** 2 + eps.imag ** 2)
-    refractive_index = np.sqrt((eps.real + norm_epsilon) / 2.)
-    extint_coeff = np.sqrt((-eps.real + norm_epsilon) / 2.)
-    reflectivity = ((refractive_index - 1.) ** 2 + extint_coeff ** 2) / (
-            (refractive_index + 1.) ** 2 + extint_coeff ** 2)
+    refractive_index = np.sqrt((eps.real + norm_epsilon) / 2.0)
+    extint_coeff = np.sqrt((-eps.real + norm_epsilon) / 2.0)
+    reflectivity = ((refractive_index - 1.0) ** 2 + extint_coeff ** 2) / (
+            (refractive_index + 1.0) ** 2 + extint_coeff ** 2
+    )
     absorption = (
-                             energies * eps.imag / refractive_index) / 1.9746 * 10.0e-7  # it is equivalent to 2.0*energies*extint_coeff/c or 4*pi*extint_coeff/lambda
-    conductivity = 1j * energies / (4. * np.pi) * (
-            1 - (eps.real + 1j * eps.imag))  # conductivity = 1j*energies/(4.*np.pi)*(1 - eps)
+            (energies * eps.imag / refractive_index) / 1.9746 * 10.0e-7
+    )  # it is equivalent to 2.0*energies*extint_coeff/c or 4*pi*extint_coeff/lambda
+    conductivity = (
+            1j * energies / (4.0 * np.pi) * (1 - (eps.real + 1j * eps.imag))
+    )  # conductivity = 1j*energies/(4.*np.pi)*(1 - eps)
 
     # Reflectivity as a function of the wavelength
     wavelengths_nm = 1239.8 / energies  # in nm
 
     # Drude plasma frequency averaged over the three Cartesian directions x, y, z
-    drude_avg = math.sqrt((drude_plasma_freq_x ** 2 + drude_plasma_freq_x ** 2 + drude_plasma_freq_z ** 2) / 3.)
+    drude_avg = math.sqrt(
+        (drude_plasma_freq_x ** 2 + drude_plasma_freq_x ** 2 + drude_plasma_freq_z ** 2)
+        / 3.0
+    )
 
     # Dielectric function (interband contribution) averaged over the three Cartesian directions x, y, z
-    eps_im_inter_avg = (eps_im_inter_x + eps_im_inter_y + eps_im_inter_z) / 3.
-    eps_re_inter_avg = (eps_re_inter_x + eps_re_inter_y + eps_re_inter_z) / 3.
+    eps_im_inter_avg = (eps_im_inter_x + eps_im_inter_y + eps_im_inter_z) / 3.0
+    eps_re_inter_avg = (eps_re_inter_x + eps_re_inter_y + eps_re_inter_z) / 3.0
 
     return wavelengths_nm, reflectivity, eps
