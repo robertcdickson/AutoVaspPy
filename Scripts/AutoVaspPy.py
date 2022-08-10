@@ -86,15 +86,19 @@ class VaspCalculations(object):
 
         Args:
             test: str
-                Name of test to be conducted. Currently supported are k-points, k-spacing, encut and sigma
+                Name of test to be conducted. Currently, supported are k-points, k-spacing, encut and sigma
             values: list
                 A list of values to test
             additional_settings: dict
-                A dictionary of additional values to pass through the ase interface for each calculation
+                Additional VASP calculation parameters in ase dict format.
             magnetic_moments: list
                 A list of magnetic moments associated with the structure
             hubbard_parameters: dict
                 A dictionary of hubbard calculation_specific_parameters in ase form for each calculation
+            plot: bool
+                If True, plot parameter testing results
+            n_cycles: int
+                Max number of relaxation cycles needed to be converged
 
         Returns:
             energies: list
@@ -202,6 +206,24 @@ class VaspCalculations(object):
             hubbard_parameters: dict,
             # TODO: plot to be added
     ):
+        """
+
+        Runs calculations on an array of hubbard parameters for a given system
+
+        Args:
+            values: dict
+                Values of hubbard parameter U to be tested.
+            additional_settings: dict
+                Additional VASP calculation parameters in ase dict format.
+            magnetic_moments: list
+                A list of magnetic moments associated with the structure
+            hubbard_parameters: dict
+                Hubbard parameters to be applied to other species' in the system.
+
+        Returns:
+            energies: list
+                Energies of structure for each U value.
+        """
 
         # get original directory as root
         owd = os.getcwd()
@@ -284,15 +306,16 @@ class VaspCalculations(object):
         return energies
 
     def make_hse_kpoints(self, ibz_file):
-        """This function aims to make the KPOINTS file needed for hybrid functional band structures
-
-        The required sequence is as follows:
-        1.  standard non-hybrid DFT run
-        2.  using converged WAVECAR, hybrid-DFT run
-        3.  zero-weight KPOINTS run using IBZKPTS file from (2)
-
-        "Mind: Remove from the band structure plot the eigenvalues corresponding to the regular k-points mesh."
-        :return:
+        """
+        TODO:
+            This function aims to make the KPOINTS file needed for hybrid functional band structures
+            ---
+            The required sequence is as follows:
+            1.  standard non-hybrid DFT run
+            2.  using converged WAVECAR, hybrid-DFT run
+            3.  zero-weight KPOINTS run using IBZKPTS file from (2)
+            ---
+            "Mind: Remove from the band structure plot the eigenvalues corresponding to the regular k-points mesh."
         """
         shutil.copy2(ibz_file, "./KPOINTS")
         band_path = self.get_band_path()[0]
@@ -315,19 +338,19 @@ class VaspCalculations(object):
         Args:
             calculation_sequence: list
                 A list of calculations to run. Currently implemented are relax, scf, bands, eps which can be suffixed
-                with "-mag" to allow for magnetic calculations
+                with "-mag" to allow for magnetic calculations.
 
             additional_settings: dict
-                A dictionary of dictionaries for extra vasp setting for each calculation stage
+                Additional VASP calculation parameters in ase dict format.
 
             magnetic_moments: list
-                The magnetic structure of the system
+                A list of magnetic moments associated with the structure
 
             hubbard_parameters: dict
-                Hubbard calculation_specific_parameters in ase dictionary format
+                Hubbard calculation_specific_parameters in ase dictionary format.
 
             nkpts: int
-                Number of k-points for band structure calculation
+                Number of k-points for band structure calculation.
 
             test_run: bool
                 If True, a test run with minimal settings is run. Any results from a test run is unlikely to be
@@ -335,9 +358,10 @@ class VaspCalculations(object):
 
         Returns:
             current_structure: ase atoms
+                Structure in ase atoms format.
 
             energy: float
-                Final energy of the system
+                Final energy of the system.
         """
 
         # default calculation sequence is relaxation and scf
@@ -392,7 +416,8 @@ class VaspCalculations(object):
             # check if individual calculation is magnetic and if hubbard calculation_specific_parameters are specified
             if "mag" in calc:
                 self.f.write("Calculation is magnetic! \n")
-                if not magnetic_moments:
+
+                if magnetic_moments is None:
                     self.f.write(
                         "No magnetic moments are specified. Are you sure this is correct? \n"
                     )
@@ -464,22 +489,40 @@ class VaspCalculations(object):
             general_settings="basic",
     ):
         """
+        Runs a single VASP calculation
 
-        Parameters
-        ----------
-        calculation_type
-        additional_settings
-        path_name
-        nkpts
-        read_safe_files
-        write_safe_files
-        magnetic_moments
-        testing
-        max_cycles
-        general_settings
+        Args:
+            calculation_type: str
+                Specifies the type of calculation to be run. Options are "scf", "relax", "bands" and "eps".
 
-        Returns
-        -------
+            additional_settings: dict
+                Additional VASP calculation parameters in ase dict format.
+
+            path_name: str
+                File path name.
+
+            nkpts: int
+                Number of k-points for a band structure calculation.
+
+            read_safe_files: bool
+                If True, reads safe files to restart calculation
+
+            write_safe_files: : bool
+                If True, saves files to the safe directory.
+
+            magnetic_moments: list
+                A list of magnetic moments associated with the structure.
+
+            testing: bool
+                If True, low cost calculations are done to test the workflow.
+
+            max_cycles: int
+                Max number of scf cycles.
+
+            general_settings: str
+                Settings group to be used for all calculations.
+
+        Returns:
 
         """
 
@@ -507,7 +550,7 @@ class VaspCalculations(object):
 
         # check for magnetism
         # can give an explicit list or a string in vasp format that is sorted by multiply_out_moments function
-        if magnetic_moments:
+        if magnetic_moments is not None:
             if type(magnetic_moments) == str:
                 magnetic_moments = self.multiply_out_moments(magnetic_moments)
             self.structure.set_initial_magnetic_moments(magmoms=magnetic_moments)
@@ -598,11 +641,13 @@ class VaspCalculations(object):
         """
         Run a single VASP calculation using an ASE calculator.
         This routine will make use of WAVECAR and CONTCAR files if they are available.
+
         Parameters
         ----------
 
         vasp_settings : dict
             The set of VASP options to apply with their values.
+
         restart : bool
             Determines if a calculation is to be restarted
 
@@ -610,8 +655,10 @@ class VaspCalculations(object):
         -------
         structure : ase atoms
             The structure after performing this calculation.
+
         energy : float
             Energy of the structure in eV.
+
         result : string
             The result of the VASP calculation,
             either "converged", "unconverged", "vasp failure", or "timed out"
@@ -662,22 +709,19 @@ class VaspCalculations(object):
     @staticmethod
     def batch_calculations(self, directories, constants, add_settings_dict=None, *args):
         """
-
-        A method for running many different versions of similar calculations
-
-        Options may include:
-
-            • Constant structure with different magnetic structures
-            • Constant crystal structure with swapping/adding/deleting atoms
-            • Constant calculations calculation_specific_parameters for different structures
-
-        What also needs to be included is:
-
-            • Ways of comparing calculations (by final energy/structure/dos etc.)
-                • This could be formed as other functions
-
-
-        Assume everything changes unless specified in constants
+        TODO:
+            A method for running many different versions of similar calculations
+            ---
+            Options may include:
+                • Constant structure with different magnetic structures
+                • Constant crystal structure with swapping/adding/deleting atoms
+                • Constant calculations calculation_specific_parameters for different structures
+            ---
+            What also needs to be included is:
+                • Ways of comparing calculations (by final energy/structure/dos etc.)
+                    • This could be formed as other functions
+            ---
+            Assume everything changes unless specified in constants
         """
 
         num_of_calculations = 10
@@ -687,16 +731,21 @@ class VaspCalculations(object):
             os.chdir(direct)
 
     def get_band_path(self, nkpts=50):
-        # This defines the band structures from Setwayan et al
 
-        """# get structure
-        if "xml" in file:
-            k_structure = Vasprun(file).final_structure
-        elif "POSCAR" in file:
-            k_structure = Poscar.from_file(file).structure
-        else:
-            raise TypeError("File type must be POSCAR or vasprun.xml")"""
-        # This defines the band structures from Setwayan et al
+        """
+        Get band path (in form specified in Setwayan et al.) and return k-points and k-path
+
+        Args:
+            nkpts: int
+                Number of k-points in band path
+
+        Returns:
+            kpts: list
+                A list of k-points
+            path: list
+                A list of high symmetry points
+
+        """
 
         path = bandpath(path=None, cell=self.structure.cell, npoints=nkpts, eps=1e-3)
         return path.kpts, path.path
@@ -943,7 +992,7 @@ def get_convex_hull_species(
         owd = os.getcwd()
 
         for entry in mp_entries:
-
+            print(entry.composition.alphabetical_formula, round(1000 * analyser.get_e_above_hull(entry), 3))
             if must_contain:
                 if all(
                         species in entry.composition.alphabetical_formula
@@ -1510,6 +1559,7 @@ def get_colour_dict(
         if 380.0 <= wavelength_nm[i] <= 780.0:
             wavelength_visible.append(wavelength_nm[i])
             reflectivity_visible.append(reflectivity[i])
+            
     # Polynomial fit of reflectivity_visible
     fit_params, fit_residuals, _, __, ___ = np.polyfit(
         wavelength_visible, reflectivity_visible, 11, full=True
@@ -1640,11 +1690,11 @@ def get_colour_dict(
     }
 
 
-def get_dielectrics(vasprun):
+def get_dielectrics(vasprun, method="density"):
     real_avg = np.array(
         [
             sum(vasprun.dielectric[1][i][0:3]) / 3
-            for i in range(len(vasprun.dielectric_data["density"][0]))
+            for i in range(len(vasprun.dielectric_data[method][0]))
         ]
     )
     imag_avg = np.array(
