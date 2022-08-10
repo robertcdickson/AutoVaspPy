@@ -15,10 +15,7 @@ def absorbance_plot(
         files,
         plot_labels,
         plot_colors=None,
-        save_file=False,
         fill=True,
-        xlims=None,
-        ylims=None,
         dark_theme=True,
 ):
     """
@@ -46,10 +43,6 @@ def absorbance_plot(
     Returns:
 
     """
-    if ylims is None:
-        ylims = []
-    if xlims is None:
-        xlims = []
     import theme_colors
 
     if not plot_colors:
@@ -63,7 +56,6 @@ def absorbance_plot(
     rcParams["xtick.major.pad"] = "10"
     rcParams["ytick.major.pad"] = "10"
     rcParams["font.family"] = prop.get_name()
-    rcParams["figure.figsize"] = 8, 6
 
     if dark_theme:
         rcParams["axes.edgecolor"] = "white"
@@ -183,14 +175,8 @@ def absorbance_plot(
         ax.tick_params(axis="y", labelsize=22)
 
         # set axes limits
-        if xlims:
-            plt.xlim(xlims[0], xlims[1])
-            plt.ylim(0, 0.25e22)
-        else:
-            plt.xlim(200, 900)
-            plt.ylim(0, 1.2e22)
-        if ylims:
-            plt.ylim([ylims[0], ylims[1]])
+        plt.xlim(200, 900)
+        plt.ylim(0, 0.1)
 
         # set axes labels
         if dark_theme:
@@ -209,8 +195,6 @@ def absorbance_plot(
     elif type(files) == str:
         plot(files, plot_colors, plot_labels)
 
-    if save_file:
-        plt.savefig(save_file, dpi=300)
 
 
 def element_dos_plot(
@@ -262,7 +246,6 @@ def element_dos_plot(
     rcParams["xtick.major.pad"] = "10"
     rcParams["ytick.major.pad"] = "10"
     rcParams["font.family"] = prop.get_name()
-    rcParams["figure.figsize"] = 4, 6
 
     if dark_theme:
         rcParams["axes.edgecolor"] = "white"
@@ -465,7 +448,7 @@ def site_dos_plot(
     rcParams["xtick.major.pad"] = "10"
     rcParams["ytick.major.pad"] = "10"
     rcParams["font.family"] = prop.get_name()
-    rcParams["figure.figsize"] = 8, 6
+    rcParams["figure.figsize"] = 4, 6
     if dark_theme:
         rcParams["axes.edgecolor"] = "white"
         rcParams["text.color"] = "white"
@@ -617,7 +600,7 @@ def bands_plot(
     rcParams["xtick.major.pad"] = "10"
     rcParams["ytick.major.pad"] = "10"
     rcParams["font.family"] = prop.get_name()
-    rcParams["figure.figsize"] = 8, 6
+    rcParams["figure.figsize"] = 4, 6
     rcParams["axes.edgecolor"] = "white"
     rcParams["text.color"] = "white"
     rcParams["axes.labelcolor"] = "white"
