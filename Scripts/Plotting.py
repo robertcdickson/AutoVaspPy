@@ -29,8 +29,6 @@ def absorbance_plot(
             Labels for each plot
         plot_colors: list
             Color of each plot
-        save_file: str
-            File to save figure to
         fill: bool
             If True, fill between plot and x axis
         xlims: list
@@ -202,9 +200,6 @@ def element_dos_plot(
         colours,
         process=False,
         total_dos=False,
-        xlim=None,
-        ylim=None,
-        save_file=None,
         dark_theme=True,
         separate_spins=True,
 ):
@@ -235,10 +230,7 @@ def element_dos_plot(
         None
 
     """
-    if ylim is None:
-        ylim = []
-    if xlim is None:
-        xlim = []
+
     fontpath = "/usr/share/fonts/avenir_ff/AvenirLTStd-Black.ttf"
     prop = font_manager.FontProperties(fname=fontpath)
 
@@ -368,20 +360,8 @@ def element_dos_plot(
     )
 
     # change axis limits
-    if not xlim:
-        pdos_plot.xlim(-5, 5)
-    else:
-        pdos_plot.xlim(xlim[0], xlim[1])
-    if not ylim:
-        pdos_plot.ylim(-40, 40)
-    else:
-        pdos_plot.ylim(ylim[0], ylim[1])
-
-    plt.tight_layout()
-    if save_file:
-        plt.savefig(save_file, dpi=300)
-    else:
-        plt.show()
+    pdos_plot.xlim(-5, 5)
+    pdos_plot.ylim(-40, 40)
 
 
 def site_dos_plot(
@@ -389,10 +369,8 @@ def site_dos_plot(
         colours,
         dos_sites=None,
         total_dos=False,
-        save_file=None,
         dark_theme=True,
-        xlim=None,
-        ylim=None,
+
 ):
     """
     Plot elemental density of states from vasprun.xml files
@@ -422,10 +400,6 @@ def site_dos_plot(
 
     """
 
-    if ylim is None:
-        ylim = []
-    if xlim is None:
-        xlim = []
     if dos_sites is None:
         dos_sites = {}
     default_colours_dict = {
@@ -559,22 +533,6 @@ def site_dos_plot(
     pdos_plot.legend(
         handles[::-1], labels[::-1], fontsize=24, fancybox=True, framealpha=0
     )
-
-    # change axis limits
-    # change axis limits
-    if not xlim:
-        pdos_plot.xlim(-10, 10)
-    else:
-        pdos_plot.xlim(xlim[0], xlim[1])
-    if not ylim:
-        pdos_plot.ylim(-40, 40)
-    else:
-        pdos_plot.ylim(ylim[0], ylim[1])
-
-    if save_file:
-        plt.savefig(save_file, dpi=300)
-    # plt.show()
-
 
 def bands_plot(
         bandrun,
